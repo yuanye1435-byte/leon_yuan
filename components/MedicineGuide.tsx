@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from './supabaseClient';
 import { Trash2, Activity, CheckCircle2, Clock, Target, ShoppingCart, Flame, BarChart3, HeartPulse, LogOut, KeyRound, User, ShieldCheck, Radar } from 'lucide-react';
 
-// 🚀 音频引擎 2.0：三相合成器
+// 🚀 黑科技 1：三相音频合成器 (声呐 & 震动)
 const playSciFiSound = (type: 'login' | 'success' | 'warning') => {
   try {
     const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
@@ -11,44 +11,44 @@ const playSciFiSound = (type: 'login' | 'success' | 'warning') => {
     const ctx = new AudioContext();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    
-    osc.connect(gain);
-    gain.connect(ctx.destination);
+    osc.connect(gain); gain.connect(ctx.destination);
 
     if (type === 'login') {
-      // 🟢 专属唤醒音：沉稳的频率爬升 (机甲启动感)
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(200, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(1000, ctx.currentTime + 0.4); // 声音拉长，有充能感
-      gain.gain.setValueAtTime(0, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.1);
+      osc.type = 'sine'; osc.frequency.setValueAtTime(200, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1000, ctx.currentTime + 0.4);
+      gain.gain.setValueAtTime(0, ctx.currentTime); gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.1);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
       osc.start(); osc.stop(ctx.currentTime + 0.5);
-      // 启动马达：沉稳的两段长震
       if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([60, 80, 60]);
-
     } else if (type === 'success') {
-      // 🔵 打卡音效：高频清脆两连音 "滴-哩"
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(800, ctx.currentTime);
+      osc.type = 'sine'; osc.frequency.setValueAtTime(800, ctx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
-      gain.gain.setValueAtTime(0.1, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
       osc.start(); osc.stop(ctx.currentTime + 0.15);
-      // 打卡马达：短促干脆
       if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([30, 50, 30]);
-
     } else {
-      // 🔴 警告音：低沉方波 "嗡——"
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(150, ctx.currentTime);
-      gain.gain.setValueAtTime(0.1, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+      osc.type = 'square'; osc.frequency.setValueAtTime(150, ctx.currentTime);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
       osc.start(); osc.stop(ctx.currentTime + 0.4);
-      // 警报马达：沉重长震
       if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([100, 50, 100]);
     }
   } catch (e) { console.log('音频引擎未激活'); }
+};
+
+// 🚀 黑科技 2：【雅典娜】A.I. 战术语音播报引擎
+const speakTacticalVoice = (text: string) => {
+  try {
+    if (!('speechSynthesis' in window)) return;
+    // 打断当前可能正在说的废话，确保立刻执行最新指令
+    window.speechSynthesis.cancel(); 
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'zh-CN'; // 锁定中文
+    utterance.rate = 1.25;     // 语速调快 1.25 倍，展现军用AI的干练、不拖泥带水
+    utterance.pitch = 0.9;    // 语调微降，显得更沉稳、专业
+    
+    window.speechSynthesis.speak(utterance);
+  } catch (e) { console.log('语音副官未激活'); }
 };
 
 export default function MedicineGuide() {
@@ -91,15 +91,29 @@ export default function MedicineGuide() {
     e.preventDefault(); setAuthLoading(true);
     if (isSignUp) {
       const { error } = await supabase.auth.signUp({ email, password });
-      if (error) alert(error.message); else alert('注册成功！赛博特工已就位！');
+      if (error) {
+        speakTacticalVoice('警告，注册受阻。'); alert(error.message);
+      } else {
+        speakTacticalVoice('坐标建立完毕。赛博特工已就位。'); alert('注册成功！');
+      }
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) alert('登录失败：' + error.message); else playSciFiSound('login'); // 👈 接入专属的唤醒音效
+      if (error) {
+        speakTacticalVoice('权限拒绝。请检查密钥。'); alert('登录失败：' + error.message);
+      } else {
+        playSciFiSound('login');
+        // 延迟0.6秒播报，等机甲启动音效响完，更有感觉
+        setTimeout(() => speakTacticalVoice('身份确认。欢迎回舱，指挥官。'), 600); 
+      }
     }
     setAuthLoading(false);
   };
 
-  const handleLogout = async () => { await supabase.auth.signOut(); setMeds([]); setLogs([]); };
+  const handleLogout = async () => { 
+    speakTacticalVoice('系统休眠。指挥官，祝您好运。');
+    await supabase.auth.signOut(); 
+    setMeds([]); setLogs([]); 
+  };
 
   const handleAddMed = async () => {
     if (!medName) return alert('药名不可为空！');
@@ -109,19 +123,36 @@ export default function MedicineGuide() {
       stock_amount: parseFloat(stockAmount), times_per_day: parseInt(timesPerDay), dose_per_time: parseFloat(dosePerTime),
       unit: unit, user_id: session.user.id 
     }]);
-    if (!error) { setMedName(''); fetchData(); playSciFiSound('success'); }
+    if (!error) { 
+      setMedName(''); fetchData(); playSciFiSound('success'); 
+      speakTacticalVoice(`补给已空投。${medName} 入库成功。`);
+    }
     setLoading(false);
   };
 
   const handleTakeMed = async (med: any) => {
     if (med.stock_amount < med.dose_per_time) {
       playSciFiSound('warning'); 
+      speakTacticalVoice(`警告！${med.name} 余量不足，请立即呼叫补给！`);
       return alert(`余量不足！请先呼叫补给！`);
     }
     playSciFiSound('success'); 
     
+    // 计算剩余天数用于语音播报
+    const remainingAmount = med.stock_amount - med.dose_per_time;
+    const dailyConsumption = med.times_per_day * med.dose_per_time;
+    const daysLeft = Math.floor(remainingAmount / dailyConsumption);
+    
+    if (daysLeft <= 3 && daysLeft > 0) {
+       speakTacticalVoice(`战术动作确认。${med.name} 已执行。注意，弹药仅剩 ${daysLeft} 天。`);
+    } else if (daysLeft === 0) {
+       speakTacticalVoice(`动作确认。${med.name} 现已彻底枯竭。`);
+    } else {
+       speakTacticalVoice(`确认。${med.name} 已执行。库存剩余 ${daysLeft} 天。`);
+    }
+
     const now = new Date().toISOString();
-    await supabase.from('medicines').update({ last_taken_at: now, stock_amount: med.stock_amount - med.dose_per_time }).eq('id', med.id);
+    await supabase.from('medicines').update({ last_taken_at: now, stock_amount: remainingAmount }).eq('id', med.id);
     await supabase.from('medicine_logs').insert([{ medicine_id: med.id, medicine_name: med.name, user_id: session.user.id }]);
     fetchData();
   };
