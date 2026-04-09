@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from './supabaseClient';
-import { Trash2, Activity, CheckCircle2, Clock, Target, ShoppingCart, Flame, BarChart3, HeartPulse, LogOut, KeyRound, User, ShieldCheck, Radar, PackagePlus, Download } from 'lucide-react';
+import { Trash2, Activity, CheckCircle2, Clock, Target, ShoppingCart, Flame, BarChart3, HeartPulse, LogOut, KeyRound, User, ShieldCheck, Radar, PackagePlus, Download, Timer } from 'lucide-react';
 
 // 🚀 黑科技 1：三相音频合成器 (声呐 & 震动)
 const playSciFiSound = (type: 'login' | 'success' | 'warning') => {
@@ -80,6 +80,13 @@ export default function MedicineGuide() {
     };
     const [logs, setLogs] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
+    // 🚀 战术雷达：全局时间心跳 (每分钟刷新倒计时)
+    const [nowTime, setNowTime] = useState(new Date());
+    useEffect(() => {
+        const timer = setInterval(() => setNowTime(new Date()), 60000);
+        return () => clearInterval(timer);
+    }, []);
+
 
     useEffect(() => {
         // 🚀 核心破解：只要手指一碰到屏幕，立刻强行解锁音频！
@@ -271,6 +278,25 @@ export default function MedicineGuide() {
         return { daysLeft, text: `储备充足 (${daysLeft}天)`, color: 'text-teal-600', bg: 'bg-teal-500/10' };
     };
 
+    // 🚀 核心逻辑：战术冷却雷达计算
+    const getRadarInfo = (lastTakenAt: string, timesPerDay: number) => {
+        if (!lastTakenAt) return { status: 'READY', text: '随时可执行', color: 'text-teal-500', bg: 'bg-teal-50', allow: true };
+
+        const lastDate = new Date(lastTakenAt);
+        const intervalHours = 24 / timesPerDay;
+        const nextDate = new Date(lastDate.getTime() + intervalHours * 60 * 60 * 1000);
+
+        if (nowTime >= nextDate) {
+            const overdueHrs = Math.floor((nowTime.getTime() - nextDate.getTime()) / (1000 * 60 * 60));
+            return { status: 'OVERDUE', text: `已超时 ${overdueHrs} 小时`, color: 'text-red-500', bg: 'bg-red-50', allow: true, pulse: true };
+        } else {
+            const diffMs = nextDate.getTime() - nowTime.getTime();
+            const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+            const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+            return { status: 'STANDBY', text: `冷却中 ${diffHrs}h ${diffMins}m`, color: 'text-orange-500', bg: 'bg-orange-50', allow: false };
+        }
+    };
+
     const getTodayProgress = (medId: string) => logs.filter(log => log.medicine_id === medId && new Date(log.taken_at).toDateString() === new Date().toDateString()).length;
 
     if (!session) {
@@ -364,6 +390,7 @@ export default function MedicineGuide() {
                         const todayCount = getTodayProgress(med.id);
                         const isCompleted = todayCount >= med.times_per_day;
                         const depletion = getDepletionInfo(med.stock_amount, med.times_per_day, med.dose_per_time);
+                        const radar = getRadarInfo(med.last_taken_at, med.times_per_day);
 
                         return (
                             <div key={med.id} className="p-6 rounded-[2rem] border-2 transition-all bg-white border-slate-100 hover:border-teal-200">
@@ -391,18 +418,42 @@ export default function MedicineGuide() {
                                     </div>
                                 </div>
 
-                                <div className="flex items-center justify-between gap-4 border-t border-slate-100/50 pt-4">
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">余量: <span className="text-slate-800">{med.stock_amount} {med.unit}</span></span>
-                                        <span className={`flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full ${depletion.bg} ${depletion.color} w-fit`}>
-                                            <Radar size={10} /> {depletion.text}
-                                        </span>
+                                {/* 🚀 升级后的战术底盘 */}
+                                <div className="flex items-center justify-between gap-4 border-t border-slate-100/50 pt-4 mt-4">
+                                    <div className="flex flex-col gap-2">
+                                        {/* 余量警告 */}
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest w-12">余量</span>
+                                            <span className="text-[12px] font-black text-slate-800">{med.stock_amount} <span className="text-[9px] text-slate-400">{med.unit}</span></span>
+                                            <span className={`flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full ${depletion.bg} ${depletion.color} w-fit`}>
+                                                <Radar size={10} /> {depletion.text}
+                                            </span>
+                                        </div>
+                                        {/* 冷却雷达 */}
+                                        {!isCompleted && (
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest w-12">雷达</span>
+                                                <span className={`flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-md ${radar.bg} ${radar.color} ${radar.pulse ? 'animate-pulse' : ''} border border-current`}>
+                                                    <Timer size={10} /> {radar.text}
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
+
+                                    {/* 发射按钮动态化 */}
                                     {isCompleted ? (
-                                        <div className="bg-emerald-50 text-emerald-600 px-6 py-3 rounded-xl font-black text-[10px] flex items-center gap-2 border border-emerald-200"><ShieldCheck size={16} /> 今日已达标</div>
+                                        <div className="bg-emerald-50 text-emerald-600 px-6 py-4 rounded-2xl font-black text-[10px] flex items-center gap-2 border border-emerald-200"><ShieldCheck size={16} /> 今日已达标</div>
                                     ) : (
-                                        <button onClick={() => handleTakeMed(med)} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-black text-[10px] hover:bg-teal-500 active:scale-95 transition-all shadow-md flex items-center gap-2">
-                                            服用 {med.dose_per_time} {med.unit}
+                                        <button
+                                            onClick={() => handleTakeMed(med)}
+                                            // 🚀 如果在冷却中，按钮变橙色并警告；否则是黑色
+                                            className={`${radar.allow ? 'bg-slate-900 hover:bg-teal-500' : 'bg-orange-500 hover:bg-orange-600'} text-white px-6 py-4 rounded-2xl font-black text-[10px] active:scale-95 transition-all shadow-md flex items-center gap-2`}
+                                        >
+                                            {/* // 🚀 寻找原本的按钮文案，替换成这个： */}
+                                            {radar.allow
+                                                ? `确认${['支', '针', 'ml'].includes(med.unit) ? '注射' : '服用'} ${med.dose_per_time}${med.unit}`
+                                                : `强制越权${['支', '针', 'ml'].includes(med.unit) ? '注射' : '服用'}`
+                                            }
                                         </button>
                                     )}
                                 </div>
