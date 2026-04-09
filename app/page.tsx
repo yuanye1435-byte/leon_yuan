@@ -2,10 +2,10 @@
 import MedicineGuide from '../components/MedicineGuide';
 import { motion } from "framer-motion";
 import { AlertTriangle, TrendingDown, Activity, ShieldCheck } from "lucide-react";
-<MedicineGuide />
 export default function Home() {
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-red-100">
+      <MedicineGuide />
       {/* 顶部 Hero 区 */}
       <section className="relative pt-32 pb-20 px-6 overflow-hidden">
         {/* 背景光晕 */}
