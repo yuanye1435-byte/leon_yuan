@@ -1,8 +1,8 @@
 "use client";
-
+import MedicineGuide from '../components/MedicineGuide';
 import { motion } from "framer-motion";
 import { AlertTriangle, TrendingDown, Activity, ShieldCheck } from "lucide-react";
-
+<MedicineGuide />
 export default function Home() {
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-red-100">
