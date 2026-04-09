@@ -82,6 +82,11 @@ export default function MedicineGuide() {
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
+        // 🚀 核心破解：只要手指一碰到屏幕，立刻强行解锁音频！
+        window.addEventListener('touchstart', unlockAudio, { once: true });
+        window.addEventListener('click', unlockAudio, { once: true });
+
+        // 下面是你原来的代码
         supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
 
@@ -99,6 +104,25 @@ export default function MedicineGuide() {
         const { data: m } = await supabase.from('medicines').select('*').order('expired_at', { ascending: true });
         const { data: l } = await supabase.from('medicine_logs').select('*').order('taken_at', { ascending: false }).limit(100);
         setMeds(m || []); setLogs(l || []);
+    };
+
+    // 🚀 黑科技 3：强行夺取手机音频通道
+    const unlockAudio = () => {
+        try {
+            // 1. 解锁 Web Audio API (为了滴滴的电子音效)
+            const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+            if (AudioContext) {
+                const ctx = new AudioContext();
+                ctx.resume();
+            }
+
+            // 2. 解锁 SpeechSynthesis (为了雅典娜的语音)
+            if ('speechSynthesis' in window) {
+                // 播报一段绝对无声的空白字符
+                const silentUtterance = new SpeechSynthesisUtterance('');
+                window.speechSynthesis.speak(silentUtterance);
+            }
+        } catch (e) { console.log('音频权限夺取失败'); }
     };
 
     const handleAuth = async (e: React.FormEvent) => {
@@ -145,23 +169,23 @@ export default function MedicineGuide() {
     };
 
     // 🚀 硬菜 1：紧急空投 (一键补充库存)
-// --- 把旧的 handleRefill 换成下面这两个 ---
-  const openRefillModal = (med: any) => {
-    setSelectedMed(med);
-    setRefillValue('20');
-    setIsRefillOpen(true);
-    playSciFiSound('success');
-  };
+    // --- 把旧的 handleRefill 换成下面这两个 ---
+    const openRefillModal = (med: any) => {
+        setSelectedMed(med);
+        setRefillValue('20');
+        setIsRefillOpen(true);
+        playSciFiSound('success');
+    };
 
-  const confirmRefill = async () => {
-    if (!selectedMed || isNaN(Number(refillValue))) return;
-    const newStock = selectedMed.stock_amount + Number(refillValue);
-    await supabase.from('medicines').update({ stock_amount: newStock }).eq('id', selectedMed.id);
-    fetchData();
-    setIsRefillOpen(false);
-    playSciFiSound('login');
-    showTacticalToast(`补给完毕：${selectedMed.name} 现存 ${newStock}`);
-  };
+    const confirmRefill = async () => {
+        if (!selectedMed || isNaN(Number(refillValue))) return;
+        const newStock = selectedMed.stock_amount + Number(refillValue);
+        await supabase.from('medicines').update({ stock_amount: newStock }).eq('id', selectedMed.id);
+        fetchData();
+        setIsRefillOpen(false);
+        playSciFiSound('login');
+        showTacticalToast(`补给完毕：${selectedMed.name} 现存 ${newStock}`);
+    };
 
     // 🚀 硬菜 2：机密数据撤离 (导出 Excel/CSV 给医生看)
     const handleExportData = () => {
@@ -406,46 +430,46 @@ export default function MedicineGuide() {
                     </div>
                 </div>
                 {/* --- 粘在倒数第二个 </div> 之前 --- */}
-      
-      {/* 🚀 战术通知 (Toast) */}
-      {toast.show && (
-        <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] transition-all">
-          <div className="bg-slate-900 border-2 border-teal-500/50 text-white px-8 py-3 rounded-full shadow-[0_0_20px_rgba(20,184,166,0.3)] flex items-center gap-3 backdrop-blur-md">
-            <div className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
-            <span className="text-[10px] font-black italic tracking-widest uppercase">{toast.msg}</span>
-          </div>
-        </div>
-      )}
 
-      {/* 🚀 补给模态框 (Modal) */}
-      {isRefillOpen && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsRefillOpen(false)} />
-          <div className="relative bg-white rounded-[3rem] p-8 w-full max-w-sm border-4 border-slate-800 shadow-2xl">
-            <div className="text-center mb-6">
-              <div className="inline-block p-3 rounded-2xl bg-teal-50 text-teal-500 mb-4">
-                <PackagePlus size={32} />
-              </div>
-              <h3 className="text-2xl font-black italic text-slate-900 uppercase">战术补给请求</h3>
-              <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">
-                Target: <span className="text-teal-500">{selectedMed?.name}</span>
-              </p>
-            </div>
-            <div className="space-y-4 mb-8">
-              <div className="bg-slate-50 p-4 rounded-2xl border-2 border-transparent focus-within:border-teal-400 transition-all">
-                <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">空投数量 ({selectedMed?.unit})</span>
-                <input type="number" autoFocus value={refillValue} onChange={(e) => setRefillValue(e.target.value)}
-                  className="w-full bg-transparent border-none outline-none text-2xl font-black text-slate-800" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => setIsRefillOpen(false)} className="py-4 rounded-2xl font-black text-xs uppercase text-slate-400 hover:bg-slate-50 transition-all">取消</button>
-              <button onClick={confirmRefill} className="bg-slate-900 hover:bg-teal-500 text-white py-4 rounded-2xl font-black text-xs uppercase transition-all shadow-lg">确认空投 ➔</button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* 这里才是原本文件的最后两个 </div> */}
+                {/* 🚀 战术通知 (Toast) */}
+                {toast.show && (
+                    <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] transition-all">
+                        <div className="bg-slate-900 border-2 border-teal-500/50 text-white px-8 py-3 rounded-full shadow-[0_0_20px_rgba(20,184,166,0.3)] flex items-center gap-3 backdrop-blur-md">
+                            <div className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
+                            <span className="text-[10px] font-black italic tracking-widest uppercase">{toast.msg}</span>
+                        </div>
+                    </div>
+                )}
+
+                {/* 🚀 补给模态框 (Modal) */}
+                {isRefillOpen && (
+                    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsRefillOpen(false)} />
+                        <div className="relative bg-white rounded-[3rem] p-8 w-full max-w-sm border-4 border-slate-800 shadow-2xl">
+                            <div className="text-center mb-6">
+                                <div className="inline-block p-3 rounded-2xl bg-teal-50 text-teal-500 mb-4">
+                                    <PackagePlus size={32} />
+                                </div>
+                                <h3 className="text-2xl font-black italic text-slate-900 uppercase">战术补给请求</h3>
+                                <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">
+                                    Target: <span className="text-teal-500">{selectedMed?.name}</span>
+                                </p>
+                            </div>
+                            <div className="space-y-4 mb-8">
+                                <div className="bg-slate-50 p-4 rounded-2xl border-2 border-transparent focus-within:border-teal-400 transition-all">
+                                    <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">空投数量 ({selectedMed?.unit})</span>
+                                    <input type="number" autoFocus value={refillValue} onChange={(e) => setRefillValue(e.target.value)}
+                                        className="w-full bg-transparent border-none outline-none text-2xl font-black text-slate-800" />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <button onClick={() => setIsRefillOpen(false)} className="py-4 rounded-2xl font-black text-xs uppercase text-slate-400 hover:bg-slate-50 transition-all">取消</button>
+                                <button onClick={confirmRefill} className="bg-slate-900 hover:bg-teal-500 text-white py-4 rounded-2xl font-black text-xs uppercase transition-all shadow-lg">确认空投 ➔</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                {/* 这里才是原本文件的最后两个 </div> */}
             </div>
         </div>
     );
