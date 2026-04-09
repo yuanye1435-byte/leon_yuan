@@ -54,7 +54,7 @@ export default function MedicineGuide() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('哥，确定要扔掉这盒药吗？')) return;
+    if (!confirm('确定要扔掉这个药品吗？')) return;
     const { error } = await supabase.from('medicines').delete().eq('id', id);
     if (error) alert('删除失败');
     else fetchMeds();
