@@ -534,45 +534,74 @@ export default function MedicineGuide() {
                 </div>
                 {/* --- 粘在倒数第二个 </div> 之前 --- */}
 
-                {/* 🚀 战术通知 (Toast) */}
-                {toast.show && (
-                    <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] transition-all">
-                        <div className="bg-slate-900 border-2 border-teal-500/50 text-white px-8 py-3 rounded-full shadow-[0_0_20px_rgba(20,184,166,0.3)] flex items-center gap-3 backdrop-blur-md">
-                            <div className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
-                            <span className="text-[10px] font-black italic tracking-widest uppercase">{toast.msg}</span>
-                        </div>
-                    </div>
-                )}
-
-                {/* 🚀 量子回溯模态框 (这是你要找的那坨代码，如果没搜到，就直接粘这儿！) */}
-                {retroMed && (
-                    <div className="fixed inset-0 z-[95] flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setRetroMed(null)} />
-                        <div className="relative bg-slate-900 rounded-[3rem] p-8 w-full max-w-md border-2 border-red-500/50 shadow-[0_0_50px_rgba(239,68,68,0.2)]">
-                            <div className="text-center mb-8">
-                                <div className="inline-block p-4 rounded-full bg-red-500/10 text-red-500 mb-4 animate-pulse">
-                                    <History size={36} />
-                                </div>
-                                <h3 className="text-xl font-black italic text-white uppercase tracking-widest">时间线修正请求</h3>
-                                <p className="text-xs font-bold text-slate-400 mt-2">
-                                    {/* 🔒 这里就是你要修复的防窥逻辑！ */}
-                                    探测到 <span className="text-teal-400">{stealth ? '【机密目标】' : retroMed.name}</span> 严重超时。<br />
-                                    您是刚刚执行了操作，还是为了补录错过的记录？
-                                </p>
-                            </div>
-                            <div className="flex flex-col gap-4">
-                                <button onClick={() => executeTakeMed(retroMed, new Date())} className="bg-slate-800 hover:bg-slate-700 text-white py-4 rounded-2xl font-black text-sm transition-all border border-slate-700">
-                                    🕒 刚刚才吃 (按此刻时间记录)
-                                </button>
-                                <button onClick={confirmRetroactive} className="bg-red-500 hover:bg-red-600 text-white py-4 rounded-2xl font-black text-sm transition-all shadow-lg">
-                                    ⚡ 量子回溯 (自动补录到完美时间点)
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-                {/* 这里才是原本文件的最后两个 </div> */}
-            </div>
+ {/* ==================== 🚀 战术底盘装甲区 (全量覆盖) ==================== */}
+      
+      {/* 1. 战术通知 (Toast) */}
+      {toast.show && (
+        <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] transition-all">
+          <div className="bg-slate-900 border-2 border-teal-500/50 text-white px-8 py-3 rounded-full shadow-[0_0_20px_rgba(20,184,166,0.3)] flex items-center gap-3 backdrop-blur-md">
+            <div className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
+            <span className="text-[10px] font-black italic tracking-widest uppercase">{toast.msg}</span>
+          </div>
         </div>
-    );
+      )}
+
+      {/* 2. 补给模态框 (Refill Modal - 你刚才弄丢的那个！) */}
+      {isRefillOpen && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsRefillOpen(false)} />
+          <div className="relative bg-white rounded-[3rem] p-8 w-full max-w-sm border-4 border-slate-800 shadow-2xl">
+            <div className="text-center mb-6">
+              <div className="inline-block p-3 rounded-2xl bg-teal-50 text-teal-500 mb-4">
+                <PackagePlus size={32} />
+              </div>
+              <h3 className="text-2xl font-black italic text-slate-900 uppercase">战术补给请求</h3>
+              <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">
+                Target: <span className="text-teal-500">{selectedMed?.name}</span>
+              </p>
+            </div>
+            <div className="space-y-4 mb-8">
+              <div className="bg-slate-50 p-4 rounded-2xl border-2 border-transparent focus-within:border-teal-400 transition-all">
+                <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">空投数量 ({selectedMed?.unit})</span>
+                <input type="number" autoFocus value={refillValue} onChange={(e) => setRefillValue(e.target.value)}
+                  className="w-full bg-transparent border-none outline-none text-2xl font-black text-slate-800" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => setIsRefillOpen(false)} className="py-4 rounded-2xl font-black text-xs uppercase text-slate-400 hover:bg-slate-50 transition-all">取消</button>
+              <button onClick={confirmRefill} className="bg-slate-900 hover:bg-teal-500 text-white py-4 rounded-2xl font-black text-xs uppercase transition-all shadow-lg">确认空投 ➔</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. 量子回溯模态框 (Retroactive Modal) */}
+      {retroMed && (
+        <div className="fixed inset-0 z-[95] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setRetroMed(null)} />
+          <div className="relative bg-slate-900 rounded-[3rem] p-8 w-full max-w-md border-2 border-red-500/50 shadow-[0_0_50px_rgba(239,68,68,0.2)]">
+            <div className="text-center mb-8">
+              <div className="inline-block p-4 rounded-full bg-red-500/10 text-red-500 mb-4 animate-pulse">
+                <History size={36} />
+              </div>
+              <h3 className="text-xl font-black italic text-white uppercase tracking-widest">时间线修正请求</h3>
+              <p className="text-xs font-bold text-slate-400 mt-2">
+                探测到 <span className="text-teal-400">{stealth ? '【机密目标】' : retroMed.name}</span> 严重超时。<br/>
+                您是刚刚执行了操作，还是为了补录错过的记录？
+              </p>
+            </div>
+            <div className="flex flex-col gap-4">
+              <button onClick={() => executeTakeMed(retroMed, new Date())} className="bg-slate-800 hover:bg-slate-700 text-white py-4 rounded-2xl font-black text-sm transition-all border border-slate-700">
+                🕒 刚刚才吃 (按此刻时间记录)
+              </button>
+              <button onClick={confirmRetroactive} className="bg-red-500 hover:bg-red-600 text-white py-4 rounded-2xl font-black text-sm transition-all shadow-lg">
+                ⚡ 量子回溯 (自动补录到完美时间点)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+    </div>
+  );
 }
