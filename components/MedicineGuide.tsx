@@ -3,8 +3,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from './supabaseClient';
 import { Trash2, Activity, CheckCircle2, Clock, Target, ShoppingCart, Flame, BarChart3, HeartPulse, LogOut, KeyRound, User, ShieldCheck, Radar } from 'lucide-react';
 
-// 🚀 黑科技：纯代码声波合成器 (零外接文件)
-const playSciFiSound = (type: 'success' | 'warning') => {
+// 🚀 音频引擎 2.0：三相合成器
+const playSciFiSound = (type: 'login' | 'success' | 'warning') => {
   try {
     const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContext) return;
@@ -15,24 +15,37 @@ const playSciFiSound = (type: 'success' | 'warning') => {
     osc.connect(gain);
     gain.connect(ctx.destination);
 
-    if (type === 'success') {
-      // 成功打卡：高频清脆两连音 "滴-哩"
+    if (type === 'login') {
+      // 🟢 专属唤醒音：沉稳的频率爬升 (机甲启动感)
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(200, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1000, ctx.currentTime + 0.4); // 声音拉长，有充能感
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.1);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+      osc.start(); osc.stop(ctx.currentTime + 0.5);
+      // 启动马达：沉稳的两段长震
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([60, 80, 60]);
+
+    } else if (type === 'success') {
+      // 🔵 打卡音效：高频清脆两连音 "滴-哩"
       osc.type = 'sine';
       osc.frequency.setValueAtTime(800, ctx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
       gain.gain.setValueAtTime(0.1, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
       osc.start(); osc.stop(ctx.currentTime + 0.15);
-      // 触发底层震动：短促两连震
+      // 打卡马达：短促干脆
       if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([30, 50, 30]);
+
     } else {
-      // 警告音：低沉方波 "嗡——"
+      // 🔴 警告音：低沉方波 "嗡——"
       osc.type = 'square';
       osc.frequency.setValueAtTime(150, ctx.currentTime);
       gain.gain.setValueAtTime(0.1, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
       osc.start(); osc.stop(ctx.currentTime + 0.4);
-      // 触发底层震动：沉重长震
+      // 警报马达：沉重长震
       if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([100, 50, 100]);
     }
   } catch (e) { console.log('音频引擎未激活'); }
@@ -81,7 +94,7 @@ export default function MedicineGuide() {
       if (error) alert(error.message); else alert('注册成功！赛博特工已就位！');
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) alert('登录失败：' + error.message); else playSciFiSound('success');
+      if (error) alert('登录失败：' + error.message); else playSciFiSound('login'); // 👈 接入专属的唤醒音效
     }
     setAuthLoading(false);
   };
@@ -102,10 +115,10 @@ export default function MedicineGuide() {
 
   const handleTakeMed = async (med: any) => {
     if (med.stock_amount < med.dose_per_time) {
-      playSciFiSound('warning'); // 👈 库存不足触发警报音
+      playSciFiSound('warning'); 
       return alert(`余量不足！请先呼叫补给！`);
     }
-    playSciFiSound('success'); // 👈 服药成功触发音效和震动
+    playSciFiSound('success'); 
     
     const now = new Date().toISOString();
     await supabase.from('medicines').update({ last_taken_at: now, stock_amount: med.stock_amount - med.dose_per_time }).eq('id', med.id);
@@ -138,7 +151,6 @@ export default function MedicineGuide() {
     });
   }, [logs]);
 
-  // 🧠 枯竭预测算法
   const getDepletionInfo = (stock: number, times: number, dose: number) => {
     const dailyConsumption = times * dose;
     if (dailyConsumption === 0 || stock <= 0) return { daysLeft: 0, text: '已枯竭', color: 'text-red-500', bg: 'bg-red-500/10' };
@@ -233,7 +245,7 @@ export default function MedicineGuide() {
           {meds.map((med) => {
             const todayCount = getTodayProgress(med.id);
             const isCompleted = todayCount >= med.times_per_day;
-            const depletion = getDepletionInfo(med.stock_amount, med.times_per_day, med.dose_per_time); // 👈 预测算法调用
+            const depletion = getDepletionInfo(med.stock_amount, med.times_per_day, med.dose_per_time); 
 
             return (
               <div key={med.id} className="p-6 rounded-[2rem] border-2 transition-all bg-white border-slate-100 hover:border-teal-200">
@@ -255,7 +267,6 @@ export default function MedicineGuide() {
                 <div className="flex items-center justify-between gap-4 border-t border-slate-100/50 pt-4">
                   <div className="flex flex-col gap-1">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">余量: <span className="text-slate-800">{med.stock_amount} {med.unit}</span></span>
-                    {/* 🚀 新增：枯竭倒计时显示雷达 */}
                     <span className={`flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full ${depletion.bg} ${depletion.color} w-fit`}>
                       <Radar size={10} /> {depletion.text}
                     </span>
