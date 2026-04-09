@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from './supabaseClient';
-import { Trash2, Activity, CheckCircle2, Clock, Target, ShoppingCart, Flame, BarChart3, HeartPulse, LogOut, KeyRound, User, ShieldCheck, Radar, PackagePlus, Download, Timer } from 'lucide-react';
+import { Trash2, Activity, CheckCircle2, Clock, Target, ShoppingCart, Flame, BarChart3, HeartPulse, LogOut, KeyRound, User, ShieldCheck, Radar, PackagePlus, Download, Timer, Eye, EyeOff, History } from 'lucide-react';
 
 // 🚀 黑科技 1：三相音频合成器 (声呐 & 震动)
 const playSciFiSound = (type: 'login' | 'success' | 'warning') => {
@@ -68,10 +68,17 @@ export default function MedicineGuide() {
     const [unit, setUnit] = useState('粒');
     const [meds, setMeds] = useState<any[]>([]);
     // --- 这里的代码粘在 const [meds...] 下面 ---
+    // 1. 之前加的：补给弹窗开关（控制那个📦图标的弹窗）
     const [isRefillOpen, setIsRefillOpen] = useState(false);
     const [selectedMed, setSelectedMed] = useState<any>(null);
     const [refillValue, setRefillValue] = useState('20');
+
+    // 2. 刚才新加的：战术通知开关
     const [toast, setToast] = useState<{ msg: string, show: boolean }>({ msg: '', show: false });
+
+    // 3. 🚀 现在这一步要加的：
+    const [stealth, setStealth] = useState(false);   // 幽灵防窥开关（控制模糊效果）
+    const [retroMed, setRetroMed] = useState<any>(null); // 量子回溯开关（控制那个红光补录弹窗）
 
     // 战术通知辅助函数
     const showTacticalToast = (msg: string) => {
@@ -216,31 +223,56 @@ export default function MedicineGuide() {
 
 
 
-    const handleTakeMed = async (med: any) => {
+    // 🚀 1. 动作拦截器 (判断是否需要时光倒流)
+    const handleTakeMedClick = (med: any) => {
+        const radar = getRadarInfo(med.last_taken_at, med.times_per_day);
+        if (radar.status === 'OVERDUE') {
+            setRetroMed(med); // 触发量子回溯警告窗
+            playSciFiSound('warning');
+        } else {
+            executeTakeMed(med, new Date()); // 正常执行
+        }
+    };
+
+    // 🚀 2. 核心处决逻辑 (带全频段静默处理)
+    const executeTakeMed = async (med: any, executionTime: Date) => {
+        // 定义脱敏代号
+        const displayName = stealth ? '【机密目标】' : med.name;
+
         if (med.stock_amount < med.dose_per_time) {
             playSciFiSound('warning');
-            speakTacticalVoice(`警告！${med.name} 余量不足，请立即呼叫补给！`);
-            return alert(`余量不足！请先呼叫补给！`);
+            showTacticalToast(`警告！${displayName} 余量不足！`);
+            // 语音也得闭嘴
+            if (typeof speakTacticalVoice !== 'undefined') speakTacticalVoice(`警告！${stealth ? '目标' : med.name}余量不足。`);
+            return;
         }
         playSciFiSound('success');
 
-        // 计算剩余天数用于语音播报
         const remainingAmount = med.stock_amount - med.dose_per_time;
-        const dailyConsumption = med.times_per_day * med.dose_per_time;
-        const daysLeft = Math.floor(remainingAmount / dailyConsumption);
+        await supabase.from('medicines').update({ last_taken_at: executionTime.toISOString(), stock_amount: remainingAmount }).eq('id', med.id);
+        await supabase.from('medicine_logs').insert([{ medicine_id: med.id, medicine_name: med.name, user_id: session.user.id, taken_at: executionTime.toISOString() }]);
 
-        if (daysLeft <= 3 && daysLeft > 0) {
-            speakTacticalVoice(`战术动作确认。${med.name} 已执行。注意，弹药仅剩 ${daysLeft} 天。`);
-        } else if (daysLeft === 0) {
-            speakTacticalVoice(`动作确认。${med.name} 现已彻底枯竭。`);
-        } else {
-            speakTacticalVoice(`确认。${med.name} 已执行。库存剩余 ${daysLeft} 天。`);
+        setRetroMed(null); fetchData();
+
+        // 弹窗脱敏
+        showTacticalToast(`战术动作确认。${displayName} 已记录。`);
+
+        // 🎙️ 语音播报脱敏 (雅典娜闭嘴模式)
+        if (typeof speakTacticalVoice !== 'undefined') {
+            if (stealth) {
+                speakTacticalVoice('静默协议执行。目标已清除。'); // 帅爆的代号语音
+            } else {
+                speakTacticalVoice(`确认。${med.name} 已执行。`);
+            }
         }
+    };
 
-        const now = new Date().toISOString();
-        await supabase.from('medicines').update({ last_taken_at: now, stock_amount: remainingAmount }).eq('id', med.id);
-        await supabase.from('medicine_logs').insert([{ medicine_id: med.id, medicine_name: med.name, user_id: session.user.id }]);
-        fetchData();
+    // 🚀 3. 启动量子回溯 (补算错过的完美时间点)
+    const confirmRetroactive = () => {
+        if (!retroMed) return;
+        const lastDate = new Date(retroMed.last_taken_at || new Date());
+        const idealTime = new Date(lastDate.getTime() + (24 / retroMed.times_per_day) * 60 * 60 * 1000);
+        executeTakeMed(retroMed, idealTime);
     };
 
     const currentStreak = useMemo(() => {
@@ -337,10 +369,30 @@ export default function MedicineGuide() {
                 </div>
                 {/* 🚀 这里的 div 把两个按钮包在了一起 */}
                 <div className="flex items-center gap-6 pt-2 md:pt-0">
-                    <button onClick={handleExportData} className="text-teal-500 hover:text-teal-400 flex items-center gap-2 text-[10px] font-black uppercase transition-all whitespace-nowrap">
+                    {/* 🚀 1. 防窥开关 (它是独立的！) */}
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation(); // 这里的 e.stopPropagation() 是双保险，严防死守冒泡
+                            setStealth(!stealth);
+                        }}
+                        className={`${stealth ? 'text-orange-500' : 'text-slate-400'} hover:text-teal-400 flex items-center gap-2 text-[10px] font-black uppercase transition-all whitespace-nowrap`}
+                    >
+                        {stealth ? <EyeOff size={14} /> : <Eye size={14} />} 防窥
+                    </button>
+
+                    {/* 🚀 2. 导出日志 (它也是独立的！) */}
+                    <button
+                        onClick={handleExportData}
+                        className="text-teal-500 hover:text-teal-400 flex items-center gap-2 text-[10px] font-black uppercase transition-all whitespace-nowrap"
+                    >
                         <Download size={14} /> 导出日志
                     </button>
-                    <button onClick={handleLogout} className="text-slate-400 hover:text-red-500 flex items-center gap-2 text-[10px] font-black uppercase transition-all whitespace-nowrap">
+
+                    {/* 🚀 3. 断开连接 */}
+                    <button
+                        onClick={handleLogout}
+                        className="text-slate-400 hover:text-red-500 flex items-center gap-2 text-[10px] font-black uppercase transition-all whitespace-nowrap"
+                    >
                         <LogOut size={14} /> 断开连接
                     </button>
                 </div>
@@ -396,7 +448,7 @@ export default function MedicineGuide() {
                             <div key={med.id} className="p-6 rounded-[2rem] border-2 transition-all bg-white border-slate-100 hover:border-teal-200">
                                 <div className="flex justify-between items-start mb-6">
                                     <div>
-                                        <h3 className="text-2xl font-black text-slate-800 flex items-center gap-2">{med.name} {isCompleted && <CheckCircle2 size={20} className="text-emerald-500" />}</h3>
+                                        <h3 className={`text-2xl font-black text-slate-800 flex items-center gap-2 transition-all duration-500 ${stealth ? 'blur-md opacity-60 select-none' : ''}`}>{med.name} {isCompleted && <CheckCircle2 size={20} className="text-emerald-500" />}</h3>
                                         <div className="mt-3">
                                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">今日进度 {todayCount}/{med.times_per_day}</span>
                                             <div className="flex gap-1.5 w-48">
@@ -445,7 +497,7 @@ export default function MedicineGuide() {
                                         <div className="bg-emerald-50 text-emerald-600 px-6 py-4 rounded-2xl font-black text-[10px] flex items-center gap-2 border border-emerald-200"><ShieldCheck size={16} /> 今日已达标</div>
                                     ) : (
                                         <button
-                                            onClick={() => handleTakeMed(med)}
+                                            onClick={() => handleTakeMedClick(med)}
                                             // 🚀 如果在冷却中，按钮变橙色并警告；否则是黑色
                                             className={`${radar.allow ? 'bg-slate-900 hover:bg-teal-500' : 'bg-orange-500 hover:bg-orange-600'} text-white px-6 py-4 rounded-2xl font-black text-[10px] active:scale-95 transition-all shadow-md flex items-center gap-2`}
                                         >
@@ -492,30 +544,29 @@ export default function MedicineGuide() {
                     </div>
                 )}
 
-                {/* 🚀 补给模态框 (Modal) */}
-                {isRefillOpen && (
-                    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsRefillOpen(false)} />
-                        <div className="relative bg-white rounded-[3rem] p-8 w-full max-w-sm border-4 border-slate-800 shadow-2xl">
-                            <div className="text-center mb-6">
-                                <div className="inline-block p-3 rounded-2xl bg-teal-50 text-teal-500 mb-4">
-                                    <PackagePlus size={32} />
+                {/* 🚀 量子回溯模态框 (这是你要找的那坨代码，如果没搜到，就直接粘这儿！) */}
+                {retroMed && (
+                    <div className="fixed inset-0 z-[95] flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setRetroMed(null)} />
+                        <div className="relative bg-slate-900 rounded-[3rem] p-8 w-full max-w-md border-2 border-red-500/50 shadow-[0_0_50px_rgba(239,68,68,0.2)]">
+                            <div className="text-center mb-8">
+                                <div className="inline-block p-4 rounded-full bg-red-500/10 text-red-500 mb-4 animate-pulse">
+                                    <History size={36} />
                                 </div>
-                                <h3 className="text-2xl font-black italic text-slate-900 uppercase">战术补给请求</h3>
-                                <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">
-                                    Target: <span className="text-teal-500">{selectedMed?.name}</span>
+                                <h3 className="text-xl font-black italic text-white uppercase tracking-widest">时间线修正请求</h3>
+                                <p className="text-xs font-bold text-slate-400 mt-2">
+                                    {/* 🔒 这里就是你要修复的防窥逻辑！ */}
+                                    探测到 <span className="text-teal-400">{stealth ? '【机密目标】' : retroMed.name}</span> 严重超时。<br />
+                                    您是刚刚执行了操作，还是为了补录错过的记录？
                                 </p>
                             </div>
-                            <div className="space-y-4 mb-8">
-                                <div className="bg-slate-50 p-4 rounded-2xl border-2 border-transparent focus-within:border-teal-400 transition-all">
-                                    <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">空投数量 ({selectedMed?.unit})</span>
-                                    <input type="number" autoFocus value={refillValue} onChange={(e) => setRefillValue(e.target.value)}
-                                        className="w-full bg-transparent border-none outline-none text-2xl font-black text-slate-800" />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <button onClick={() => setIsRefillOpen(false)} className="py-4 rounded-2xl font-black text-xs uppercase text-slate-400 hover:bg-slate-50 transition-all">取消</button>
-                                <button onClick={confirmRefill} className="bg-slate-900 hover:bg-teal-500 text-white py-4 rounded-2xl font-black text-xs uppercase transition-all shadow-lg">确认空投 ➔</button>
+                            <div className="flex flex-col gap-4">
+                                <button onClick={() => executeTakeMed(retroMed, new Date())} className="bg-slate-800 hover:bg-slate-700 text-white py-4 rounded-2xl font-black text-sm transition-all border border-slate-700">
+                                    🕒 刚刚才吃 (按此刻时间记录)
+                                </button>
+                                <button onClick={confirmRetroactive} className="bg-red-500 hover:bg-red-600 text-white py-4 rounded-2xl font-black text-sm transition-all shadow-lg">
+                                    ⚡ 量子回溯 (自动补录到完美时间点)
+                                </button>
                             </div>
                         </div>
                     </div>
