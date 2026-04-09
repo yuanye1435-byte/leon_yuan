@@ -172,58 +172,65 @@ export default function MedicineGuide() {
 
   // 🚀 如果已登录，展示指挥控制台
   return (
-    <div className="max-w-6xl mx-auto my-6 p-4 md:p-8 bg-[#f1f5f9] min-h-screen rounded-[2.5rem] shadow-2xl font-sans relative">
-      
-      {/* 登出按钮 */}
-      <button onClick={handleLogout} className="absolute top-8 right-8 text-slate-400 hover:text-red-500 flex items-center gap-2 text-[10px] font-black uppercase transition-all">
-        <LogOut size={14} /> 断开连接
-      </button>
+<div className="max-w-6xl mx-auto my-6 p-4 md:p-8 bg-[#f1f5f9] min-h-screen rounded-[2.5rem] shadow-2xl font-sans relative">
+  
+{/* 🚀 第一部分：全新的、防撞车的顶级控制台头部 */}
+  <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-4">
+    <div>
+      <h1 className="text-5xl font-black italic tracking-tighter text-slate-900">LEON PULSE<span className="text-teal-500">.</span></h1>
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.5em] mt-1">
+         Operator: <span className="text-teal-500">{session?.user?.email}</span>
+      </p>
+    </div>
 
-      {/* 战术指挥舱 */}
-      <div className="mb-10 grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-3 flex justify-between items-end mb-2">
-          <div>
-            <h1 className="text-5xl font-black italic tracking-tighter text-slate-900">LEON PULSE<span className="text-teal-500">.</span></h1>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.5em] mt-1">
-               Operator: <span className="text-teal-500">{session.user.email}</span>
-            </p>
-          </div>
-        </div>
+    {/* 登出按钮：现在它会根据屏幕宽度自动排版，绝对不撞车 */}
+    <button onClick={handleLogout} className="text-slate-400 hover:text-red-500 flex items-center gap-2 text-[10px] font-black uppercase transition-all whitespace-nowrap pt-2 md:pt-0">
+      <LogOut size={14} /> 断开连接
+    </button>
+  </div>
 
-        {/* 卡片保留 */}
-        <div className="bg-slate-900 rounded-[2rem] p-6 shadow-xl text-white relative overflow-hidden flex flex-col justify-between">
-          <div className="absolute -right-10 -top-10 opacity-10"><HeartPulse size={120} /></div>
-          <div className="flex items-center gap-2 text-slate-400 mb-4 text-xs font-bold uppercase tracking-widest"><Activity size={16}/> 核心运转率</div>
-          <div>
-            <div className="text-6xl font-black italic tracking-tighter text-teal-400">{meds.length === 0 ? '0' : Math.min(100, Math.round((logs.length / (meds.length * 3 * 7)) * 100))}%</div>
-          </div>
-        </div>
-        <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-slate-400 mb-4 text-xs font-bold uppercase tracking-widest"><Flame size={16} className="text-orange-500"/> 战术连胜</div>
-          <div className="flex items-end gap-3">
-            <div className="text-6xl font-black italic tracking-tighter text-slate-800">{currentStreak}</div>
-            <div className="text-sm font-bold text-slate-400 mb-2">DAYS</div>
-          </div>
-        </div>
-        <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100">
-          <div className="flex items-center gap-2 text-slate-400 mb-4 text-xs font-bold uppercase tracking-widest"><BarChart3 size={16} className="text-teal-500"/> 行动热力矩阵</div>
-          <div className="flex gap-2 h-16 items-end justify-between">
-            {last7DaysHeatmap.map((day, i) => {
-              let bg = 'bg-slate-100';
-              if (day.count > 0) bg = 'bg-teal-200';
-              if (day.count > 2) bg = 'bg-teal-400';
-              if (day.count > 4) bg = 'bg-teal-600';
-              return (
-                <div key={i} className="flex flex-col items-center gap-2 w-full">
-                  <div className={`w-full rounded-md transition-all duration-500 ${bg}`} style={{ height: Math.max(12, Math.min(day.count * 10, 48)) + 'px' }} />
-                  <span className="text-[9px] font-black text-slate-400 uppercase">{day.day}</span>
-                </div>
-              );
-            })}
-          </div>
+  {/* 🚀 第二部分：战术指挥舱（仅保留三张卡片，删除了原本里面的旧标题div） */}
+  <div className="mb-10 grid grid-cols-1 md:grid-cols-3 gap-6">
+    {/* 卡片 1：机体健康度 */}
+    <div className="bg-slate-900 rounded-[2rem] p-6 shadow-xl text-white relative overflow-hidden flex flex-col justify-between">
+      <div className="absolute -right-10 -top-10 opacity-10"><HeartPulse size={120} /></div>
+      <div className="flex items-center gap-2 text-slate-400 mb-4 text-xs font-bold uppercase tracking-widest"><Activity size={16}/> 核心运转率</div>
+      <div>
+        <div className="text-6xl font-black italic tracking-tighter text-teal-400">
+          {meds.length === 0 ? '0' : Math.min(100, Math.round((logs.length / (meds.length * 3 * 7)) * 100))}%
         </div>
       </div>
+    </div>
 
+    {/* 卡片 2：连胜火种 */}
+    <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 flex flex-col justify-between">
+      <div className="flex items-center gap-2 text-slate-400 mb-4 text-xs font-bold uppercase tracking-widest"><Flame size={16} className="text-orange-500"/> 战术连胜</div>
+      <div className="flex items-end gap-3">
+        <div className="text-6xl font-black italic tracking-tighter text-slate-800">{currentStreak}</div>
+        <div className="text-sm font-bold text-slate-400 mb-2">DAYS</div>
+      </div>
+    </div>
+
+    {/* 卡片 3：7天行动热力图 */}
+    <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100">
+      <div className="flex items-center gap-2 text-slate-400 mb-4 text-xs font-bold uppercase tracking-widest"><BarChart3 size={16} className="text-teal-500"/> 行动热力矩阵</div>
+      <div className="flex gap-2 h-16 items-end justify-between">
+        {last7DaysHeatmap.map((day, i) => {
+          let bg = 'bg-slate-100';
+          if (day.count > 0) bg = 'bg-teal-200';
+          if (day.count > 2) bg = 'bg-teal-400';
+          if (day.count > 4) bg = 'bg-teal-600';
+          return (
+            <div key={i} className="flex flex-col items-center gap-2 w-full">
+              <div className={`w-full rounded-md transition-all duration-500 ${bg}`} style={{ height: Math.max(12, Math.min(day.count * 10, 48)) + 'px' }} />
+              <span className="text-[9px] font-black text-slate-400 uppercase">{day.day}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  </div>
+  
       {/* 录入区 */}
       <div className="bg-white p-6 rounded-[2rem] shadow-sm mb-10 border border-slate-100">
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
