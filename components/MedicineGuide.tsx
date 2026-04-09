@@ -1,52 +1,123 @@
-import React from 'react';
+"use client";
+import React, { useState, useEffect } from 'react';
+import { supabase } from './supabaseClient';
+import { Trash2, PlusCircle, Package } from 'lucide-react';
 
 export default function MedicineGuide() {
+  const [medName, setMedName] = useState('');
+  const [meds, setMeds] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchMeds = async () => {
+    const { data, error } = await supabase
+      .from('medicines')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) console.error('取货失败:', error);
+    else setMeds(data || []);
+  };
+
+  useEffect(() => {
+    fetchMeds();
+  }, []);
+
+  const calculateExpiry = (name: string) => {
+    const today = new Date();
+    if (name.includes('眼药水') || name.includes('滴眼液')) {
+      today.setDate(today.getDate() + 28);
+    } else if (name.includes('瓶')) {
+      today.setMonth(today.getMonth() + 6);
+    } else {
+      today.setFullYear(today.getFullYear() + 1);
+    }
+    return today.toISOString().split('T')[0];
+  };
+
+  const handleAddMed = async () => {
+    if (!medName) return alert('统帅，药名还没写呢！');
+    setLoading(true);
+    const expiryDate = calculateExpiry(medName);
+    const { error } = await supabase
+      .from('medicines')
+      .insert([{ 
+        name: medName, 
+        expired_at: expiryDate,
+        category: medName.includes('眼药水') ? '液体' : '片剂'
+      }]);
+
+    if (error) alert('存入失败：' + error.message);
+    else {
+      setMedName('');
+      fetchMeds();
+    }
+    setLoading(false);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('哥，确定要扔掉这盒药吗？')) return;
+    const { error } = await supabase.from('medicines').delete().eq('id', id);
+    if (error) alert('删除失败');
+    else fetchMeds();
+  };
+
   return (
-    <div className="max-w-4xl mx-auto my-12 p-6 md:p-12 bg-white text-gray-800 rounded-3xl shadow-xl border border-gray-100">
-      
-      {/* 头部高能预警 */}
-      <div className="text-center mb-12">
-        <h2 className="text-3xl md:text-5xl font-extrabold text-slate-900 tracking-tight mb-4">
-          药盒上的有效期 <span className="text-red-500">≠</span> 使用期
+    <div className="max-w-4xl mx-auto my-12 p-8 bg-white rounded-3xl shadow-2xl border border-slate-100">
+      <div className="text-center mb-8">
+        <h2 className="text-3xl font-extrabold text-slate-900 mb-2 flex justify-center items-center gap-2">
+          <Package className="text-teal-500" /> 莱昂脉冲 · 智能药箱
         </h2>
-        <p className="text-lg text-slate-600 font-medium">
-          一旦拆封，环境正在加速药品的“死亡”。
-        </p>
+        <p className="text-slate-500 text-sm">云端实时同步 · 智能到期提醒</p>
       </div>
 
-      {/* 核心红线 - 三大件 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-        <div className="bg-orange-50 p-8 rounded-2xl border-t-4 border-orange-400">
-          <div className="text-4xl mb-4">💊</div>
-          <h3 className="text-xl font-bold mb-2">瓶装药片 / 胶囊</h3>
-          <div className="text-3xl font-black text-orange-600 mb-2">3 - 6 个月</div>
-          <p className="text-sm text-slate-600 font-medium">反复开盖带入湿气，变色粘连立刻丢弃。</p>
-        </div>
-
-        <div className="bg-red-50 p-8 rounded-2xl border-t-4 border-red-500 relative">
-          <div className="text-4xl mb-4">💧</div>
-          <h3 className="text-xl font-bold mb-2">眼药水 / 鼻喷雾</h3>
-          <div className="text-3xl font-black text-red-600 mb-2">仅限 4 周</div>
-          <p className="text-sm text-slate-600 font-medium">瓶口极易滋生细菌，超期不管剩多少必须扔。</p>
-        </div>
-
-        <div className="bg-teal-50 p-8 rounded-2xl border-t-4 border-teal-500">
-          <div className="text-4xl mb-4">🛡️</div>
-          <h3 className="text-xl font-bold mb-2">独立铝箔包装</h3>
-          <div className="text-3xl font-black text-teal-700 mb-2">最安全</div>
-          <p className="text-sm text-slate-600 font-medium">未破损前按药盒日期，撕开后务必防潮密封。</p>
-        </div>
-      </div>
-
-      {/* 底部行动呼吁 */}
-      <div className="bg-slate-900 text-white rounded-2xl p-8 text-center flex flex-col md:flex-row items-center justify-between">
-        <div className="text-left mb-6 md:mb-0">
-          <h4 className="text-xl font-bold mb-2 text-white">☠️ 过期药不治病，只伤身</h4>
-          <p className="text-slate-400 text-sm font-medium">延误病情 / 毒性倍增 / 污染水源。请立即清理您的药箱。</p>
-        </div>
-        <button className="bg-teal-500 hover:bg-teal-400 text-white font-bold py-3 px-8 rounded-full transition-all shadow-lg">
-          守护家人健康 ➔
+      <div className="flex flex-col md:flex-row gap-4 mb-12">
+        <input 
+          type="text" 
+          value={medName}
+          onChange={(e) => setMedName(e.target.value)}
+          placeholder="输入药品名称（如：左氧氟沙星滴眼液）"
+          className="flex-1 p-4 rounded-xl border-2 border-slate-100 focus:border-teal-500 outline-none transition-all text-slate-800"
+        />
+        <button 
+          onClick={handleAddMed}
+          disabled={loading}
+          className="bg-slate-900 hover:bg-teal-600 text-white font-bold py-4 px-8 rounded-xl transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+        >
+          {loading ? '同步中...' : <><PlusCircle size={20} /> 确认入库</>}
         </button>
+      </div>
+
+      <div className="space-y-4">
+        <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+          📦 我的库存清单
+          <span className="text-sm font-normal text-slate-400">({meds.length} 件)</span>
+        </h3>
+        
+        <div className="grid gap-3">
+          {meds.map((med) => (
+            <div key={med.id} className="group flex items-center justify-between p-4 bg-slate-50 rounded-2xl hover:bg-white hover:shadow-xl transition-all border border-transparent hover:border-teal-100">
+              <div className="flex items-center gap-4">
+                <div className={`w-2 h-12 rounded-full ${med.name.includes('眼药水') ? 'bg-blue-400' : 'bg-teal-400'}`} />
+                <div>
+                  <div className="font-bold text-slate-800 text-lg">{med.name}</div>
+                  <div className="text-xs text-slate-400 uppercase tracking-widest">类别：{med.category}</div>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-6">
+                <div className="text-right">
+                  <div className="text-[10px] text-slate-400 uppercase font-bold tracking-tighter text-right">EXPIRY DATE</div>
+                  <div className="font-mono font-bold text-red-500 text-lg leading-none">{med.expired_at}</div>
+                </div>
+                <button 
+                  onClick={() => handleDelete(med.id)}
+                  className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-100 md:opacity-0 group-hover:opacity-100"
+                >
+                  <Trash2 size={20} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
