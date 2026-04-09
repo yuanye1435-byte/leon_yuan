@@ -1,11 +1,8 @@
 {
   "name": "莱昂脉冲 · 战术医疗",
   "short_name": "Leon Pulse",
-  "description": "个人赛博战术医疗补给终端",
-  "start_url": "/",
+  "start_url": ".",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#14b8a6",
   "icons": [
     {
       "src": "/icon.png",
@@ -18,4 +15,4 @@
       "type": "image/png"
     }
   ]
-}   
+}

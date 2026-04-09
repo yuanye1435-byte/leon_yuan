@@ -27,11 +27,27 @@ export default function MedicineGuide() {
   const [loading, setLoading] = useState(false);
 
   // 📡 监听登录状态
+// 🔐 1. 监听登录状态 + 注册赛博守卫 (只在启动时运行一次)
   useEffect(() => {
+    // 原有的登录逻辑
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    // 🚀 核心：在这里注册 Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/sw.js').then(function(reg) {
+          console.log('✅ 守卫已就位:', reg.scope);
+        }).catch(function(err) {
+          console.log('❌ 守卫罢工:', err);
+        });
+      });
+    }
+
     return () => subscription.unsubscribe();
-  }, []);
+  }, []); // 👈 这里的空括号保证它只运行一次
 
   // 📡 只有登录了才去拉取属于自己的数据
   useEffect(() => {
