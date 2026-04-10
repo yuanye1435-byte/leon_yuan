@@ -543,7 +543,7 @@ export default function MedicineGuide() {
                         </button>
                     </div>
                     {/* 🚀 【奥林匹斯】一键齐射发射井 */}
-                    <div className="mb-6 flex justify-end">
+                    {/* <div className="mb-6 flex justify-end">
                         <button
                             onClick={handleSalvoFire}
                             className="bg-gradient-to-r from-teal-500 to-emerald-400 hover:from-teal-400 hover:to-emerald-300 text-white px-8 py-4 rounded-2xl font-black tracking-widest text-sm shadow-[0_0_20px_rgba(20,184,166,0.2)] transition-all flex items-center gap-2 hover:scale-105 active:scale-95 border border-teal-300/50 group overflow-hidden relative"
@@ -552,7 +552,7 @@ export default function MedicineGuide() {
                             <CheckCircle2 size={20} className="animate-pulse" />
                             一键批量记录
                         </button>
-                    </div>
+                    </div> */}
 
                     {meds.map((med) => {
                         const todayCount = getTodayProgress(med.id);
@@ -639,12 +639,12 @@ export default function MedicineGuide() {
                                         {/* 🚨 底部情报区：显示余量并带预警 */}
                                         {/* 🚨 底部情报区：一体化战术状态胶囊 */}
                                         <div className="flex items-center gap-3">
-                                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">余量</span>
+                                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest w-8">余量</span>
 
                                             {/* 🚀 熔接外壳：控制整体圆角和阴影 */}
                                             <div className={`flex items-stretch rounded-full border transition-all overflow-hidden ${isLowAmmo
-                                                    ? 'border-red-300 shadow-[0_2px_15px_rgba(239,68,68,0.2)]'
-                                                    : 'border-slate-200 bg-white shadow-sm'
+                                                ? 'border-red-300 shadow-[0_2px_15px_rgba(239,68,68,0.2)]'
+                                                : 'border-slate-200 bg-white shadow-sm'
                                                 }`}>
 
                                                 {/* 📊 数据核心舱 */}
@@ -663,18 +663,33 @@ export default function MedicineGuide() {
                                             </div>
                                         </div>
                                         {/* 冷却雷达 */}
-                                        {!isCompleted && (
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest w-12">雷达</span>
-                                                <span className={`flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-md ${radar.bg} ${radar.color} ${radar.pulse ? 'animate-pulse' : ''} border border-current`}>
-                                                    <Timer size={10} /> {radar.text}
-                                                </span>
-                                            </div>
-                                        )}
+                                        {/* 📡 终极双核雷达：满配重装底盘，解决头重脚轻 */}
+                                        <div className="flex items-center gap-3 mt-5">
+                                            {/* 锁定 w-8 让“余量”和“雷达”完美左对齐 */}
+                                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest w-8">雷达</span>
+
+                                            {isCompleted ? (
+                                                /* ✅ 达成待机 */
+                                                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 shadow-sm transition-all h-[30px]">
+                                                    <CheckCircle2 size={14} className="opacity-80" />
+                                                    <span className="text-[11px] font-black tracking-widest leading-none mt-[1px]">
+                                                        任务达成 · 归位待机
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                /* ⏱ 运行冷却：加满底色 (bg-orange-50)，字号调大至 text-[11px]，高度锁死 h-[30px] 配合上面的胶囊 */
+                                                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border shadow-[0_2px_12px_rgba(249,115,22,0.15)] transition-all h-[30px] ${typeof radar !== 'undefined' ? (radar.bg.includes('bg-') ? radar.bg : 'bg-orange-50') + ' ' + radar.color : 'bg-orange-100 text-orange-600 '}`}>
+                                                    <Timer size={14} className="animate-pulse opacity-80" />
+                                                    <span className="text-[11px] font-black tracking-widest leading-none mt-[1px]">
+                                                        {typeof radar !== 'undefined' ? radar.text : '冷却中 6h 9m'}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
 
                                     {/* 发射按钮动态化 */}
-                                    {isCompleted && med.times_per_day > 0 ? (
+                                    {!isCompleted && med.times_per_day > 0 ? (
                                         <div className="bg-emerald-50 text-emerald-600 px-6 py-4 rounded-2xl font-black text-[10px] flex items-center gap-2 border border-emerald-200"><ShieldCheck size={16} /> 今日已达标</div>
                                     ) : (
                                         <button
