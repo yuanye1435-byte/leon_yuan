@@ -215,6 +215,7 @@ export default function MedicineGuide() {
     };
 
     const confirmRefill = async () => {
+
         if (!selectedMed || isNaN(Number(refillValue))) return;
         const newStock = selectedMed.stock_amount + Number(refillValue);
         await supabase.from('medicines').update({ stock_amount: newStock }).eq('id', selectedMed.id);
@@ -494,14 +495,19 @@ export default function MedicineGuide() {
                                             {med.times_per_day === 0 ? (
                                                 <span className="text-[10px] font-black text-purple-500 uppercase tracking-widest mb-1 block">⚡ 战术急救补给 (按需使用)</span>
                                             ) : (
-                                                <>
-                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">今日进度 {todayCount}/{med.times_per_day}</span>
-                                                    <div className="flex gap-1.5 w-48">
-                                                        {Array.from({ length: med.times_per_day }).map((_, i) => (
-                                                            <div key={i} className={`h-2 flex-1 rounded-sm transition-all duration-500 ${i < todayCount ? 'bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.6)]' : 'bg-slate-200'}`} />
-                                                        ))}
-                                                    </div>
-                                                </>
+                                                // 🔒 关键：只有在“非防窥”状态下，才显示进度条和数字
+                                                !stealth && (
+                                                    <>
+                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">
+                                                            今日进度 {todayCount}/{med.times_per_day}
+                                                        </span>
+                                                        <div className="flex gap-1.5 w-48">
+                                                            {Array.from({ length: med.times_per_day }).map((_, i) => (
+                                                                <div key={i} className={`h-2 flex-1 rounded-sm transition-all duration-500 ${i < todayCount ? 'bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.6)]' : 'bg-slate-200'}`} />
+                                                            ))}
+                                                        </div>
+                                                    </>
+                                                )
                                             )}
                                         </div>
                                     </div>
@@ -522,8 +528,8 @@ export default function MedicineGuide() {
                                         <button
                                             onClick={() => handleDeleteClick(med.id)}
                                             className={`transition-all h-11 rounded-2xl flex items-center justify-center gap-1 shadow-sm ${armedId === med.id
-                                                    ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.3)] animate-pulse w-full'
-                                                    : 'text-slate-300 hover:text-red-500 bg-slate-50 w-full border border-slate-100/50'
+                                                ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.3)] animate-pulse w-full'
+                                                : 'text-slate-300 hover:text-red-500 bg-slate-50 w-full border border-slate-100/50'
                                                 }`}
                                         >
                                             {armedId === med.id ? (
@@ -606,7 +612,10 @@ export default function MedicineGuide() {
                     <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] transition-all">
                         <div className="bg-slate-900 border-2 border-teal-500/50 text-white px-8 py-3 rounded-full shadow-[0_0_20px_rgba(20,184,166,0.3)] flex items-center gap-3 backdrop-blur-md">
                             <div className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
-                            <span className="text-[10px] font-black italic tracking-widest uppercase">{toast.msg}</span>
+                            <span className="text-[10px] font-black italic tracking-widest uppercase">
+                                {/* 🔒 逻辑：如果开启防窥，不管提示啥，都显示“静默协议”；否则显示真实提示 */}
+                                {stealth ? '静默协议执行：机密目标 [信息受控]' : toast.msg}
+                            </span>
                         </div>
                     </div>
                 )}
