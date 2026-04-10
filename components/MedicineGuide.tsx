@@ -3,25 +3,28 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from './supabaseClient';
 import { Trash2, Activity, CheckCircle2, Clock, Target, ShoppingCart, Flame, BarChart3, HeartPulse, LogOut, KeyRound, User, ShieldCheck, Radar, PackagePlus, Download, Timer, Eye, EyeOff, History } from 'lucide-react';
 
-// 🚀 黑科技 1：三相音频合成器 (声呐 & 震动)
+// --- 🚀 全局黑科技插件 (放在组件外面) ---
 const playSciFiSound = (type: 'login' | 'success' | 'warning') => {
     try {
-        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        const AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
         if (!AudioContext) return;
         const ctx = new AudioContext();
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-        osc.connect(gain); gain.connect(ctx.destination);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
 
         if (type === 'login') {
-            osc.type = 'sine'; osc.frequency.setValueAtTime(200, ctx.currentTime);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(200, ctx.currentTime);
             osc.frequency.exponentialRampToValueAtTime(1000, ctx.currentTime + 0.4);
             gain.gain.setValueAtTime(0, ctx.currentTime); gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.1);
             gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
             osc.start(); osc.stop(ctx.currentTime + 0.5);
             if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([60, 80, 60]);
         } else if (type === 'success') {
-            osc.type = 'sine'; osc.frequency.setValueAtTime(800, ctx.currentTime);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(800, ctx.currentTime);
             osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
             gain.gain.setValueAtTime(0.1, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
             osc.start(); osc.stop(ctx.currentTime + 0.15);
@@ -35,386 +38,69 @@ const playSciFiSound = (type: 'login' | 'success' | 'warning') => {
     } catch (e) { console.log('音频引擎未激活'); }
 };
 
-// 🚀 黑科技 2：【雅典娜】A.I. 战术语音播报引擎
 const speakTacticalVoice = (text: string) => {
     try {
         if (!('speechSynthesis' in window)) return;
         window.speechSynthesis.cancel();
-
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'zh-CN';
-
-        // 🚀 调音核心：
-        utterance.rate = 1.1;  // 别太快，太快像赶集，1.1 这种不急不慢的节奏才有压迫感
-        utterance.pitch = 0.5; // 重点在这里！把音调强行压到 0.5。
-        // 只要音调够低，就算是超市播报员也能听出点“赛博判官”的冷峻感。
+        utterance.rate = 1.1;
+        utterance.pitch = 0.5;
         utterance.volume = 1;
-
         window.speechSynthesis.speak(utterance);
     } catch (e) { console.log('语音副官未激活'); }
 };
 
+// --- 🛠️ 主机甲核心：MedicineGuide ---
 export default function MedicineGuide() {
-    // 🎯 【全军备战】一键锁定所有待办目标
-    const toggleSelectAll = () => {
-        // 如果当前选中的数量等于可操作的总数，就全取消
-        const readyMeds = meds.filter(m => (m.todayCount || 0) < m.times_per_day);
-        const readyIds = readyMeds.map(m => m.id);
-
-        if (selectedIds.length === readyIds.length && readyIds.length > 0) {
-            setSelectedIds([]);
-        } else {
-            setSelectedIds(readyIds);
-        }
-    };
-    // 🚀 【赤红警戒】紧急空投协议：瞬间补给 20 发弹药
-    const handleEmergencyAirdrop = async (med: any) => {
-        // 播放空投音效
-        playSciFiSound('login');
-        showTacticalToast(`📡 正在呼叫轨道空投：${stealth ? '机密药资' : med.name} +20...`);
-
-        try {
-            const newAmount = med.stock_amount + 20;
-            await supabase.from('medicines').update({ stock_amount: newAmount }).eq('id', med.id);
-            fetchData();
-            const fetchMedicines = fetchData; // 这样两个名字就通了，随便调哪个都行
-            setTimeout(() => showTacticalToast('📦 空投药资已抵达战壕！'), 1500);
-        } catch (error) {
-            showTacticalToast('❌ 空投受阻，请检查通讯链路！');
-        }
-    };
-
-    // 🚀 【奥林匹斯】全阵列齐射协议 (精准狙击版)
-    const handleSalvoFire = async () => {
-        // 1. 战术校验：如果名单是空的，禁止浪费弹药
-        if (selectedIds.length === 0) {
-            alert('⚠️ 统帅，请先在下方卡片中锁定要执行的战术目标！');
-            return;
-        }
-
-        // 2. 情报筛选：只针对选中的、且还没完成的目标开火
-        const readyMeds = meds.filter(med => {
-            const isSelected = selectedIds.includes(med.id);
-            const isCompleted = med.times_per_day > 0 && (med.todayCount || 0) >= med.times_per_day;
-            return isSelected && !isCompleted;
-        });
-
-        if (readyMeds.length === 0) {
-            alert('🛡️ 选中的目标均已达成或不在此任务队列，无需开火！');
-            return;
-        }
-
-        // 3. 终极确认（隐私模式适配）
-        const stealthNames = stealth ? '【隐私模式已开启：隐藏药物明细】' : readyMeds.map(m => ` • ${m.name}`).join('\n');
-        if (!window.confirm(`确认对以下 ${readyMeds.length} 个选定目标执行齐射？\n\n${stealthNames}\n\n执行后今日进度将 +1`)) {
-            return;
-        }
-
-        try {
-            // 💥 多目标同步打击
-            const promises = readyMeds.map(med =>
-                supabase.from('medicine_logs').insert([{ medicine_id: med.id, taken_at: new Date().toISOString() }])
-            );
-            await Promise.all(promises);
-
-            // ✅ 击中目标后：清空锁定名单，刷新全局战情
-            setSelectedIds([]);
-            fetchData();
-        } catch (error) {
-            console.error('齐射协议执行失败:', error);
-            alert('💥 火控系统故障，请检查连接！');
-        }
-    };
-
+    // 1. 🧠 【指挥中心】状态记忆区
     const [session, setSession] = useState<any>(null);
+    const [meds, setMeds] = useState<any[]>([]);
+    const [logs, setLogs] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [authLoading, setAuthLoading] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isSignUp, setIsSignUp] = useState(false);
-    const [authLoading, setAuthLoading] = useState(false);
 
+    // 药名表单状态
     const [medName, setMedName] = useState('');
     const [stockAmount, setStockAmount] = useState('20');
     const [timesPerDay, setTimesPerDay] = useState('3');
     const [dosePerTime, setDosePerTime] = useState('1');
     const [unit, setUnit] = useState('粒');
-    const [meds, setMeds] = useState<any[]>([]);
-    // 🎯 【精准火控】锁定名单 - 明确告诉它是 any[] 或者 string[]，防止 TS 犯病
-    const [selectedIds, setSelectedIds] = React.useState<any[]>([]);
 
-    // 🎯 【精准火控】切换函数 - 给 id 也加个类型 (id: any)
-    const toggleSelection = (id: any) => {
-        setSelectedIds((prev) =>
-            prev.includes(id)
-                ? prev.filter((i) => i !== id)
-                : [...prev, id]
-        );
-    };
-
-    // --- 这里的代码粘在 const [meds...] 下面 ---
-    // 🧠 【DEFCON 战情中枢】全盘火力统筹算法 (修复版)
-    const tacticalStats = React.useMemo(() => {
-        // 1. 必须先声明这些变量，否则下面全是“黑户”
-        let totalTargets = 0;
-        let destroyedTargets = 0;
-        let readyCount = 0;
-
-        // 2. 只有当 meds 存在时才开始扫描
-        if (meds && meds.length > 0) {
-            meds.forEach(med => {
-                if (med.times_per_day > 0) {
-                    totalTargets += med.times_per_day;
-                    destroyedTargets += (med.todayCount || 0);
-
-                    // 计算还没吃完的目标
-                    const isCompleted = (med.todayCount || 0) >= med.times_per_day;
-                    if (!isCompleted) readyCount++;
-                }
-            });
-        }
-        // 3. 计算覆盖率
-        const hitRate = totalTargets > 0 ? Math.round((destroyedTargets / totalTargets) * 100) : 100;
-
-        // 4. 战备等级判定逻辑
-        let defcon = { level: 5, color: 'text-emerald-400', bg: 'bg-emerald-500', status: '全域安全', glow: 'shadow-[0_0_20px_rgba(52,211,153,0.3)]' };
-
-        if (readyCount > 3) {
-            defcon = { level: 1, color: 'text-red-500', bg: 'bg-red-600', status: '阵地失守', glow: 'shadow-[0_0_30px_rgba(239,68,68,0.5)] animate-pulse' };
-        } else if (readyCount > 0) {
-            defcon = { level: 3, color: 'text-amber-400', bg: 'bg-amber-500', status: '交火冲突', glow: 'shadow-[0_0_20px_rgba(251,191,36,0.3)]' };
-        }
-
-        return { totalTargets, destroyedTargets, hitRate, defcon };
-    }, [meds]); // 只要 meds 变了，情报中心就重算
-    // 1. 之前加的：补给弹窗开关（控制那个📦图标的弹窗）
+    // 战术功能状态
+    const [selectedIds, setSelectedIds] = useState<any[]>([]);
+    const [showFireModal, setShowFireModal] = useState(false);
     const [isRefillOpen, setIsRefillOpen] = useState(false);
     const [selectedMed, setSelectedMed] = useState<any>(null);
     const [refillValue, setRefillValue] = useState('20');
-
-    // 2. 刚才新加的：战术通知开关
+    const [stealth, setStealth] = useState(false);
+    const [retroMed, setRetroMed] = useState<any>(null);
     const [toast, setToast] = useState<{ msg: string, show: boolean }>({ msg: '', show: false });
-
-    // 3. 🚀 现在这一步要加的：
-    const [stealth, setStealth] = useState(false);   // 幽灵防窥开关（控制模糊效果）
-    const [retroMed, setRetroMed] = useState<any>(null); // 量子回溯开关（控制那个红光补录弹窗）
-
-    // 战术通知辅助函数
-    const showTacticalToast = (msg: string) => {
-        setToast({ msg, show: true });
-        setTimeout(() => setToast({ msg: '', show: false }), 3000);
-    };
-    const [logs, setLogs] = useState<any[]>([]);
-    const [loading, setLoading] = useState(false);
-    // 🚀 战术雷达：全局时间心跳 (每分钟刷新倒计时)
     const [nowTime, setNowTime] = useState(new Date());
-    useEffect(() => {
-        const timer = setInterval(() => setNowTime(new Date()), 60000);
-        return () => clearInterval(timer);
-    }, []);
-
-
-    // 🚀 战术保险栓 (用于防误删)
     const [armedId, setArmedId] = useState<string | null>(null);
 
-    // 🚀 神盾防误触逻辑
-    const handleDeleteClick = (id: string) => {
-        if (armedId === id) {
-            // 拔下保险栓后的第二次点击：真正销毁
-            supabase.from('medicines').delete().eq('id', id).then(fetchData);
-            setArmedId(null);
-            showTacticalToast('目标已被物理销毁。');
-            playSciFiSound('warning');
-        } else {
-            // 第一次点击：解除保险，进入 3 秒倒计时
-            setArmedId(id);
-            playSciFiSound('login');
-            // 3秒后自动恢复保险
-            setTimeout(() => {
-                setArmedId(current => current === id ? null : current);
-            }, 3000);
-        }
-    };
-
-
-    useEffect(() => {
-        // 🚀 核心破解：只要手指一碰到屏幕，立刻强行解锁音频！
-        window.addEventListener('touchstart', unlockAudio, { once: true });
-        window.addEventListener('click', unlockAudio, { once: true });
-
-        // 下面是你原来的代码
-        supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
-
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', function () {
-                navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW error', err));
+    // 2. 📊 【战情分析】Memo 逻辑
+    const tacticalStats = useMemo(() => {
+        let totalTargets = 0, destroyedTargets = 0, readyCount = 0;
+        if (meds.length > 0) {
+            meds.forEach(med => {
+                if (med.times_per_day > 0) {
+                    totalTargets += med.times_per_day;
+                    const todayCount = logs.filter(l => l.medicine_id === med.id && new Date(l.taken_at).toDateString() === new Date().toDateString()).length;
+                    destroyedTargets += todayCount;
+                    if (todayCount < med.times_per_day) readyCount++;
+                }
             });
         }
-        return () => subscription.unsubscribe();
-    }, []);
-
-    useEffect(() => { if (session) fetchData(); }, [session]);
-
-    const fetchData = async () => {
-        const { data: m } = await supabase.from('medicines').select('*').order('expired_at', { ascending: true });
-        const { data: l } = await supabase.from('medicine_logs').select('*').order('taken_at', { ascending: false }).limit(100);
-        setMeds(m || []); setLogs(l || []);
-    };
-
-    // 🚀 黑科技 3：强行夺取手机音频通道
-    const unlockAudio = () => {
-        try {
-            // 1. 解锁 Web Audio API (为了滴滴的电子音效)
-            const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-            if (AudioContext) {
-                const ctx = new AudioContext();
-                ctx.resume();
-            }
-
-            // 2. 解锁 SpeechSynthesis (为了雅典娜的语音)
-            if ('speechSynthesis' in window) {
-                // 播报一段绝对无声的空白字符
-                const silentUtterance = new SpeechSynthesisUtterance('');
-                window.speechSynthesis.speak(silentUtterance);
-            }
-        } catch (e) { console.log('音频权限夺取失败'); }
-    };
-
-    const handleAuth = async (e: React.FormEvent) => {
-        e.preventDefault(); setAuthLoading(true);
-        if (isSignUp) {
-            const { error } = await supabase.auth.signUp({ email, password });
-            if (error) {
-                speakTacticalVoice('警告，注册受阻。'); alert(error.message);
-            } else {
-                speakTacticalVoice('坐标建立完毕。赛博特工已就位。'); alert('注册成功！');
-            }
-        } else {
-            const { error } = await supabase.auth.signInWithPassword({ email, password });
-            if (error) {
-                speakTacticalVoice('权限拒绝。请检查密钥。'); alert('登录失败：' + error.message);
-            } else {
-                playSciFiSound('login');
-                // 延迟0.6秒播报，等机甲启动音效响完，更有感觉
-                setTimeout(() => speakTacticalVoice('身份确认。欢迎回舱，指挥官。'), 600);
-            }
-        }
-        setAuthLoading(false);
-    };
-
-    const handleLogout = async () => {
-        speakTacticalVoice('系统休眠。指挥官，祝您好运。');
-        await supabase.auth.signOut();
-        setMeds([]); setLogs([]);
-    };
-
-    const handleAddMed = async () => {
-        if (!medName) return alert('药名不可为空！');
-        setLoading(true);
-        const { error } = await supabase.from('medicines').insert([{
-            name: medName, expired_at: new Date(Date.now() + 31536000000).toISOString().split('T')[0],
-            stock_amount: parseFloat(stockAmount), times_per_day: parseInt(timesPerDay), dose_per_time: parseFloat(dosePerTime),
-            unit: unit, user_id: session.user.id
-        }]);
-        if (!error) {
-            setMedName(''); fetchData(); playSciFiSound('success');
-            speakTacticalVoice(`补给已空投。${medName} 入库成功。`);
-        }
-        setLoading(false);
-    };
-
-    // 🚀 硬菜 1：紧急空投 (一键补充库存)
-    // --- 把旧的 handleRefill 换成下面这两个 ---
-    const openRefillModal = (med: any) => {
-        setSelectedMed(med);
-        setRefillValue('20');
-        setIsRefillOpen(true);
-        playSciFiSound('success');
-    };
-
-    const confirmRefill = async () => {
-
-        if (!selectedMed || isNaN(Number(refillValue))) return;
-        const newStock = selectedMed.stock_amount + Number(refillValue);
-        await supabase.from('medicines').update({ stock_amount: newStock }).eq('id', selectedMed.id);
-        fetchData();
-        setIsRefillOpen(false);
-        playSciFiSound('login');
-        showTacticalToast(`补给完毕：${selectedMed.name} 现存 ${newStock}`);
-    };
-
-    // 🚀 硬菜 2：机密数据撤离 (导出 Excel/CSV 给医生看)
-    const handleExportData = () => {
-        if (logs.length === 0) return alert('当前无战术日志可供撤离！');
-
-        // 生成 CSV 格式数据
-        const headers = "药品名,执行时间,操作员\n";
-        const csvContent = logs.map(l => {
-            const date = new Date(l.taken_at).toLocaleString('zh-CN');
-            return `${l.medicine_name},${date},${session?.user?.email}`;
-        }).join("\n");
-
-        // 强制下载
-        const blob = new Blob(["\ufeff" + headers + csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = `LeonPulse_战术日志_${new Date().toISOString().split('T')[0]}.csv`;
-        link.click();
-        playSciFiSound('login');
-    };
-
-
-
-    // 🚀 1. 动作拦截器 (判断是否需要时光倒流)
-    const handleTakeMedClick = (med: any) => {
-        const radar = getRadarInfo(med.last_taken_at, med.times_per_day);
-        if (radar.status === 'OVERDUE') {
-            setRetroMed(med); // 触发量子回溯警告窗
-            playSciFiSound('warning');
-        } else {
-            executeTakeMed(med, new Date()); // 正常执行
-        }
-    };
-
-    // 🚀 2. 核心处决逻辑 (带全频段静默处理)
-    const executeTakeMed = async (med: any, executionTime: Date) => {
-        // 定义脱敏代号
-        const displayName = stealth ? '【机密目标】' : med.name;
-
-        if (med.stock_amount < med.dose_per_time) {
-            playSciFiSound('warning');
-            showTacticalToast(`警告！${displayName} 余量不足！`);
-            // 语音也得闭嘴
-            if (typeof speakTacticalVoice !== 'undefined') speakTacticalVoice(`警告！${stealth ? '目标' : med.name}余量不足。`);
-            return;
-        }
-        playSciFiSound('success');
-
-        const remainingAmount = med.stock_amount - med.dose_per_time;
-        await supabase.from('medicines').update({ last_taken_at: executionTime.toISOString(), stock_amount: remainingAmount }).eq('id', med.id);
-        await supabase.from('medicine_logs').insert([{ medicine_id: med.id, medicine_name: med.name, user_id: session.user.id, taken_at: executionTime.toISOString() }]);
-
-        setRetroMed(null); fetchData();
-
-        // 弹窗脱敏
-        showTacticalToast(`战术动作确认。${displayName} 已记录。`);
-
-        // 🎙️ 语音播报脱敏 (雅典娜闭嘴模式)
-        if (typeof speakTacticalVoice !== 'undefined') {
-            if (stealth) {
-                speakTacticalVoice('静默协议执行。目标已清除。'); // 帅爆的代号语音
-            } else {
-                speakTacticalVoice(`确认。${med.name} 已执行。`);
-            }
-        }
-    };
-
-    // 🚀 3. 启动量子回溯 (补算错过的完美时间点)
-    const confirmRetroactive = () => {
-        if (!retroMed) return;
-        const lastDate = new Date(retroMed.last_taken_at || new Date());
-        const idealTime = new Date(lastDate.getTime() + (24 / retroMed.times_per_day) * 60 * 60 * 1000);
-        executeTakeMed(retroMed, idealTime);
-    };
+        const hitRate = totalTargets > 0 ? Math.round((destroyedTargets / totalTargets) * 100) : 100;
+        let defcon = { level: 5, color: 'text-emerald-400', bg: 'bg-emerald-500', status: '全域安全', glow: 'shadow-[0_0_20px_rgba(52,211,153,0.3)]' };
+        if (readyCount > 3) defcon = { level: 1, color: 'text-red-500', bg: 'bg-red-600', status: '阵地失守', glow: 'shadow-[0_0_30px_rgba(239,68,68,0.5)] animate-pulse' };
+        else if (readyCount > 0) defcon = { level: 3, color: 'text-amber-400', bg: 'bg-amber-500', status: '交火冲突', glow: 'shadow-[0_0_20px_rgba(251,191,36,0.3)]' };
+        return { totalTargets, destroyedTargets, hitRate, defcon };
+    }, [meds, logs]);
 
     const currentStreak = useMemo(() => {
         if (logs.length === 0) return 0;
@@ -422,7 +108,8 @@ export default function MedicineGuide() {
         let streak = 0, checkDate = new Date();
         for (let i = 0; i < uniqueDays.length; i++) {
             const logDateStr = uniqueDays[i];
-            if (i === 0 && logDateStr !== checkDate.toISOString().split('T')[0]) {
+            const checkStr = checkDate.toISOString().split('T')[0];
+            if (i === 0 && logDateStr !== checkStr) {
                 checkDate.setDate(checkDate.getDate() - 1);
                 if (logDateStr !== checkDate.toISOString().split('T')[0]) return streak;
             }
@@ -432,54 +119,169 @@ export default function MedicineGuide() {
         return streak;
     }, [logs]);
 
-    const last7DaysHeatmap = useMemo(() => {
-        return Array.from({ length: 7 }).map((_, i) => {
-            const d = new Date(); d.setDate(d.getDate() - (6 - i));
-            const dateStr = d.toISOString().split('T')[0];
-            const count = logs.filter(l => l.taken_at.startsWith(dateStr)).length;
-            return { date: dateStr, count, day: d.toLocaleDateString('en-US', { weekday: 'short' }) };
-        });
-    }, [logs]);
+    // 3. 🛰️ 【实时监听】Effects
+    useEffect(() => {
+        const timer = setInterval(() => setNowTime(new Date()), 60000);
+        window.addEventListener('touchstart', unlockAudio, { once: true });
+        window.addEventListener('click', unlockAudio, { once: true });
+        supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
+        return () => {
+            clearInterval(timer);
+            subscription.unsubscribe();
+        };
+    }, []);
 
-    const getDepletionInfo = (stock: number, times: number, dose: number) => {
-        const dailyConsumption = times * dose;
-        if (dailyConsumption === 0 || stock <= 0) return { daysLeft: 0, text: '已枯竭', color: 'text-red-500', bg: 'bg-red-500/10' };
+    useEffect(() => { if (session) fetchData(); }, [session]);
 
-        const daysLeft = Math.floor(stock / dailyConsumption);
-        if (daysLeft <= 3) return { daysLeft, text: `预警: 仅剩 ${daysLeft} 天`, color: 'text-orange-500', bg: 'bg-orange-500/10' };
-        if (daysLeft <= 7) return { daysLeft, text: `将于 ${daysLeft} 天后耗尽`, color: 'text-yellow-600', bg: 'bg-yellow-500/10' };
-        return { daysLeft, text: `储备充足 (${daysLeft}天)`, color: 'text-teal-600', bg: 'bg-teal-500/10' };
+    // 4. 🛠️ 【战术动作】Handlers
+    const fetchData = async () => {
+        const { data: m } = await supabase.from('medicines').select('*').order('expired_at', { ascending: true });
+        const { data: l } = await supabase.from('medicine_logs').select('*').order('taken_at', { ascending: false }).limit(100);
+        setMeds(m || []); setLogs(l || []);
     };
 
-    // 🚀 核心逻辑：战术冷却雷达计算
-    const getRadarInfo = (lastTakenAt: string, timesPerDay: number) => {
-        // ⚡ 新增：赫尔墨斯急救协议 (频次为0时，无冷却、无超时，永远待命)
-        if (timesPerDay === 0) {
-            return { status: 'SOS', text: '急救待命', color: 'text-purple-500', bg: 'bg-purple-50', allow: true, pulse: false };
+    const unlockAudio = () => {
+        try {
+            const AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
+            if (AudioContext) new AudioContext().resume();
+            if ('speechSynthesis' in window) window.speechSynthesis.speak(new SpeechSynthesisUtterance(''));
+        } catch (e) { console.log('音频权限夺取失败'); }
+    };
+
+    const toggleSelectAll = () => {
+        const readyIds = meds.filter(m => getTodayProgress(m.id) < m.times_per_day).map(m => m.id);
+        setSelectedIds(selectedIds.length === readyIds.length && readyIds.length > 0 ? [] : readyIds);
+    };
+
+    const toggleSelection = (id: string) => {
+        setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+    };
+
+    const handleSalvoFire = () => {
+        const targets = meds.filter(m => selectedIds.includes(m.id) && getTodayProgress(m.id) < m.times_per_day);
+        if (targets.length === 0) return alert('🛡️ 统帅，名单中没有可执行的目标！');
+        setShowFireModal(true);
+    };
+
+    const executeSalvo = async () => {
+        const targets = meds.filter(m => selectedIds.includes(m.id) && getTodayProgress(m.id) < m.times_per_day);
+        try {
+            const promises = targets.map(med => supabase.from('medicine_logs').insert([{
+                medicine_id: med.id, medicine_name: med.name, user_id: session.user.id, taken_at: new Date().toISOString()
+            }]));
+            // 更新库存逻辑
+            const stockUpdates = targets.map(med => supabase.from('medicines').update({
+                stock_amount: med.stock_amount - med.dose_per_time, last_taken_at: new Date().toISOString()
+            }).eq('id', med.id));
+
+            await Promise.all([...promises, ...stockUpdates]);
+            setSelectedIds([]); setShowFireModal(false); fetchData();
+            playSciFiSound('success');
+            speakTacticalVoice(`全阵列齐射完毕。${targets.length} 个目标已清除。`);
+        } catch (error) { alert('💥 火控系统异常！'); }
+    };
+
+    const handleTakeMedClick = (med: any) => {
+        const radar = getRadarInfo(med.last_taken_at, med.times_per_day);
+        if (radar.status === 'OVERDUE') { setRetroMed(med); playSciFiSound('warning'); }
+        else executeTakeMed(med, new Date());
+    };
+
+    const executeTakeMed = async (med: any, executionTime: Date) => {
+        if (med.stock_amount < med.dose_per_time) {
+            playSciFiSound('warning');
+            showTacticalToast(`警告！${stealth ? '机密目标' : med.name} 余量不足！`);
+            return;
         }
+        try {
+            await supabase.from('medicines').update({ last_taken_at: executionTime.toISOString(), stock_amount: med.stock_amount - med.dose_per_time }).eq('id', med.id);
+            await supabase.from('medicine_logs').insert([{ medicine_id: med.id, medicine_name: med.name, user_id: session.user.id, taken_at: executionTime.toISOString() }]);
+            setRetroMed(null); fetchData(); playSciFiSound('success');
+            showTacticalToast(`战术动作确认。${stealth ? '机密目标' : med.name} 已记录。`);
+            speakTacticalVoice(stealth ? '静默协议执行。' : `${med.name} 已执行。`);
+        } catch (e) { console.error(e); }
+    };
 
-        if (!lastTakenAt) return { status: 'READY', text: '随时可执行', color: 'text-teal-500', bg: 'bg-teal-50', allow: true };
-        // ...下面保留你原本的时间计算逻辑不变...
-        const lastDate = new Date(lastTakenAt);
-        const intervalHours = 24 / timesPerDay;
-        const nextDate = new Date(lastDate.getTime() + intervalHours * 60 * 60 * 1000);
+    const confirmRetroactive = () => {
+        if (!retroMed) return;
+        const lastDate = new Date(retroMed.last_taken_at || new Date());
+        const idealTime = new Date(lastDate.getTime() + (24 / retroMed.times_per_day) * 60 * 60 * 1000);
+        executeTakeMed(retroMed, idealTime);
+    };
 
-        if (nowTime >= nextDate) {
-            const overdueHrs = Math.floor((nowTime.getTime() - nextDate.getTime()) / (1000 * 60 * 60));
-            return { status: 'OVERDUE', text: `已超时 ${overdueHrs} 小时`, color: 'text-red-500', bg: 'bg-red-50', allow: true, pulse: true };
+    const handleAuth = async (e: React.FormEvent) => {
+        e.preventDefault(); setAuthLoading(true);
+        if (isSignUp) {
+            const { error } = await supabase.auth.signUp({ email, password });
+            if (error) { speakTacticalVoice('警告，注册受阻。'); alert(error.message); }
+            else { speakTacticalVoice('坐标建立。欢迎接入。'); alert('注册成功！'); }
         } else {
-            const diffMs = nextDate.getTime() - nowTime.getTime();
-            const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
-            const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-            return { status: 'STANDBY', text: `冷却中 ${diffHrs}h ${diffMins}m`, color: 'text-orange-500', bg: 'bg-orange-50', allow: false };
+            const { error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) { speakTacticalVoice('权限拒绝。'); alert(error.message); }
+            else { playSciFiSound('login'); setTimeout(() => speakTacticalVoice('身份确认。欢迎回舱。'), 600); }
         }
+        setAuthLoading(false);
     };
 
-    const getTodayProgress = (medId: string) => logs.filter(log => log.medicine_id === medId && new Date(log.taken_at).toDateString() === new Date().toDateString()).length;
+    const handleLogout = async () => {
+        speakTacticalVoice('系统休眠。祝您好运。');
+        await supabase.auth.signOut();
+        setMeds([]); setLogs([]);
+    };
 
+    const handleAddMed = async () => {
+        if (!medName) return alert('药名不可为空！');
+        const { error } = await supabase.from('medicines').insert([{
+            name: medName, expired_at: new Date(Date.now() + 31536000000).toISOString().split('T')[0],
+            stock_amount: parseFloat(stockAmount), times_per_day: parseInt(timesPerDay), dose_per_time: parseFloat(dosePerTime),
+            unit: unit, user_id: session.user.id
+        }]);
+        if (!error) { setMedName(''); fetchData(); playSciFiSound('success'); speakTacticalVoice(`${medName} 入库成功。`); }
+    };
+
+    const openRefillModal = (med: any) => { setSelectedMed(med); setRefillValue('20'); setIsRefillOpen(true); playSciFiSound('success'); };
+    const confirmRefill = async () => {
+        if (!selectedMed || isNaN(Number(refillValue))) return;
+        const newStock = selectedMed.stock_amount + Number(refillValue);
+        await supabase.from('medicines').update({ stock_amount: newStock }).eq('id', selectedMed.id);
+        fetchData(); setIsRefillOpen(false); playSciFiSound('login');
+        showTacticalToast(`补给完毕：现存 ${newStock}`);
+    };
+
+    const handleDeleteClick = (id: string) => {
+        if (armedId === id) { supabase.from('medicines').delete().eq('id', id).then(fetchData); setArmedId(null); playSciFiSound('warning'); }
+        else { setArmedId(id); playSciFiSound('login'); setTimeout(() => setArmedId(curr => curr === id ? null : curr), 3000); }
+    };
+
+    const handleExportData = () => {
+        if (logs.length === 0) return alert('无日志可供导出！');
+        const headers = "药品名,执行时间\n";
+        const csvContent = logs.map(l => `${l.medicine_name},${new Date(l.taken_at).toLocaleString('zh-CN')}`).join("\n");
+        const blob = new Blob(["\ufeff" + headers + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `战术日志_${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+    };
+
+    const showTacticalToast = (msg: string) => { setToast({ msg, show: true }); setTimeout(() => setToast({ msg: '', show: false }), 3000); };
+
+    // 辅助计算
+    const getTodayProgress = (medId: string) => logs.filter(log => log.medicine_id === medId && new Date(log.taken_at).toDateString() === new Date().toDateString()).length;
+    const getRadarInfo = (last: string, times: number) => {
+        if (times === 0) return { status: 'SOS', text: '急救待命', color: 'text-purple-500', bg: 'bg-purple-50', allow: true };
+        if (!last) return { status: 'READY', text: '随时可执行', color: 'text-teal-500', bg: 'bg-teal-50', allow: true };
+        const next = new Date(new Date(last).getTime() + (24 / times) * 60 * 60 * 1000);
+        if (nowTime >= next) return { status: 'OVERDUE', text: `已超时 ${Math.floor((nowTime.getTime() - next.getTime()) / 3600000)}h`, color: 'text-red-500', bg: 'bg-red-50', allow: true };
+        const diff = next.getTime() - nowTime.getTime();
+        return { status: 'STANDBY', text: `冷却中 ${Math.floor(diff / 3600000)}h ${Math.floor((diff % 3600000) / 60000)}m`, color: 'text-orange-500', bg: 'bg-orange-50', allow: false };
+    };
+
+    // 5. 🚪 【鉴权拦截】
     if (!session) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4 font-sans">
+            <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
                 <div className="bg-white p-10 rounded-[3rem] shadow-2xl w-full max-w-md border-4 border-slate-800">
                     <div className="text-center mb-10">
                         <h1 className="text-5xl font-black italic tracking-tighter text-slate-900">LEON<span className="text-teal-500">.</span></h1>
@@ -494,366 +296,186 @@ export default function MedicineGuide() {
                             <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                             <input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="安全密钥" className="w-full pl-12 pr-4 py-4 rounded-2xl bg-slate-50 border-none outline-none focus:ring-2 focus:ring-teal-400 font-bold" />
                         </div>
-                        <button type="submit" disabled={authLoading} className="w-full bg-slate-900 hover:bg-teal-500 text-white font-black py-4 rounded-2xl transition-all shadow-lg active:scale-95 mt-4">
+                        <button type="submit" disabled={authLoading} className="w-full bg-slate-900 hover:bg-teal-500 text-white font-black py-4 rounded-2xl transition-all shadow-lg mt-4">
                             {authLoading ? '验证中...' : (isSignUp ? '注册新坐标' : '接入主控制台 ➔')}
                         </button>
                     </form>
                     <div className="text-center mt-6">
-                        <button onClick={() => setIsSignUp(!isSignUp)} className="text-xs font-bold text-slate-400 hover:text-teal-500 transition-colors">{isSignUp ? '已有通行证？立即接入' : '没有通行证？申请注册'}</button>
+                        <button onClick={() => setIsSignUp(!isSignUp)} className="text-xs font-bold text-slate-400 hover:text-teal-500">{isSignUp ? '已有通行证？立即接入' : '没有通行证？申请注册'}</button>
                     </div>
                 </div>
             </div>
         );
     }
 
+    // 6. 🚀 【主界面渲染】
     return (
         <div className="max-w-6xl mx-auto my-6 p-4 md:p-8 bg-[#f1f5f9] min-h-screen rounded-[2.5rem] shadow-2xl font-sans relative">
+            {/* 顶部 Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-4 pr-2">
                 <div>
                     <h1 className="text-5xl font-black italic tracking-tighter text-slate-900">LEON PULSE<span className="text-teal-500">.</span></h1>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.5em] mt-1">Operator: <span className="text-teal-500">{session?.user?.email}</span></p>
+                    {/* 找到 Header 里的 email 展示位 */}
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.5em] mt-1">
+                        Operator: <span className={`text-teal-500 transition-all ${stealth ? 'blur-sm select-none' : ''}`}>
+                            {stealth ? 'COMMANDER_CONFIDENTIAL' : session?.user?.email}
+                        </span>
+                    </p>
                 </div>
-                {/* 🚀 这里的 div 把两个按钮包在了一起 */}
                 <div className="flex items-center gap-6 pt-2 md:pt-0">
-                    {/* 🚀 1. 防窥开关 (它是独立的！) */}
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation(); // 这里的 e.stopPropagation() 是双保险，严防死守冒泡
-                            setStealth(!stealth);
-                        }}
-                        className={`${stealth ? 'text-orange-500' : 'text-slate-400'} hover:text-teal-400 flex items-center gap-2 text-[10px] font-black uppercase transition-all whitespace-nowrap`}
-                    >
+                    <button onClick={() => setStealth(!stealth)} className={`${stealth ? 'text-orange-500' : 'text-slate-400'} hover:text-teal-400 flex items-center gap-2 text-[10px] font-black uppercase`}>
                         {stealth ? <EyeOff size={14} /> : <Eye size={14} />} 防窥
                     </button>
-
-                    {/* 🚀 2. 导出日志 (它也是独立的！) */}
-                    <button
-                        onClick={handleExportData}
-                        className="text-teal-500 hover:text-teal-400 flex items-center gap-2 text-[10px] font-black uppercase transition-all whitespace-nowrap"
-                    >
+                    <button onClick={handleExportData} className="text-teal-500 hover:text-teal-400 flex items-center gap-2 text-[10px] font-black uppercase">
                         <Download size={14} /> 导出日志
                     </button>
-
-                    {/* 🚀 3. 断开连接 */}
-                    <button
-                        onClick={handleLogout}
-                        className="text-slate-400 hover:text-red-500 flex items-center gap-2 text-[10px] font-black uppercase transition-all whitespace-nowrap"
-                    >
+                    <button onClick={handleLogout} className="text-slate-400 hover:text-red-500 flex items-center gap-2 text-[10px] font-black uppercase">
                         <LogOut size={14} /> 断开连接
                     </button>
                 </div>
             </div>
 
+            {/* 仪表盘统计 */}
             <div className="mb-10 grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-slate-900 rounded-[2rem] p-6 shadow-xl text-white relative overflow-hidden flex flex-col justify-between">
-                    <div className="absolute -right-10 -top-10 opacity-10"><HeartPulse size={120} /></div>
-                    <div className="flex items-center gap-2 text-slate-400 mb-4 text-xs font-bold uppercase tracking-widest"><Activity size={16} /> 核心运转率</div>
-                    <div><div className="text-6xl font-black italic tracking-tighter text-teal-400">{meds.length === 0 ? '0' : Math.min(100, Math.round((logs.length / (meds.length * 3 * 7)) * 100))}%</div></div>
+                {/* 核心运转率和连胜天数也加上模糊 */}
+                <div className={`text-6xl font-black italic tracking-tighter text-teal-400 transition-all ${stealth ? 'blur-lg select-none' : ''}`}>
+                    {stealth ? '88' : tacticalStats.hitRate}%
                 </div>
                 <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 flex flex-col justify-between">
                     <div className="flex items-center gap-2 text-slate-400 mb-4 text-xs font-bold uppercase tracking-widest"><Flame size={16} className="text-orange-500" /> 战术连胜</div>
                     <div className="flex items-end gap-3"><div className="text-6xl font-black italic tracking-tighter text-slate-800">{currentStreak}</div><div className="text-sm font-bold text-slate-400 mb-2">DAYS</div></div>
                 </div>
-                {/* 🚀 修复后的行动热力矩阵 - 强制 7 列，溢出隐藏 */}
-                <div className="bg-white rounded-[2.5rem] p-8 border-2 border-slate-100 flex-1 min-h-[300px] overflow-hidden">
-                    <div className="flex items-center gap-2 mb-6">
-                        <div className="text-teal-500"><Activity size={20} /></div>
-                        <h3 className="text-sm font-black italic text-slate-400 uppercase tracking-widest">行动热力矩阵</h3>
-                    </div>
-
-                    {/* 🔒 关键修复：使用 grid-cols-7 确保一周 7 天整齐排列，绝对不横冲直撞 */}
+                <div className="bg-white rounded-[2.5rem] p-8 border-2 border-slate-100 flex-1 flex flex-col justify-between">
+                    <div className="flex items-center gap-2 mb-4 text-slate-400 text-xs font-black uppercase tracking-widest"><Activity size={16} /> 行动热力矩阵</div>
                     <div className="grid grid-cols-7 gap-2">
-                        {/* 这里的 Array(28) 代表展示过去 4 周的数据，你可以根据实际需求调整 */}
                         {Array.from({ length: 28 }).map((_, i) => (
-                            <div
-                                key={i}
-                                className="aspect-square rounded-md bg-slate-50 border border-slate-100 flex flex-col items-center justify-center group hover:border-teal-300 transition-all cursor-help"
-                                title={`偏移天数: -${27 - i}`}
-                            >
-                                {/* 这里面不要再放“频次/日”的字了！这里只需放一个小方块，或者一个代表状态的小点 */}
-                                <div className="w-2 h-2 rounded-full bg-slate-200 group-hover:bg-teal-400 transition-all" />
+                            <div key={i} className="aspect-square rounded-md bg-slate-50 border border-slate-100 group hover:border-teal-300 transition-all flex items-center justify-center">
+                                <div className="w-2 h-2 rounded-full bg-slate-200 group-hover:bg-teal-400" />
                             </div>
                         ))}
-                    </div>
-
-                    <div className="mt-6 flex justify-between items-center text-[9px] font-black text-slate-300 uppercase tracking-tighter">
-                        <span>28 Days Ago</span>
-                        <span>Today</span>
                     </div>
                 </div>
             </div>
 
+            {/* 新增补给 */}
             <div className="bg-white p-6 rounded-[2rem] shadow-sm mb-10 border border-slate-100">
                 <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
-                    <input value={medName} onChange={(e) => setMedName(e.target.value)} placeholder="药品名" className="col-span-2 lg:col-span-1 p-4 rounded-xl bg-slate-50 border-none outline-none focus:ring-2 focus:ring-teal-400 font-bold" />
+                    <input value={medName} onChange={(e) => setMedName(e.target.value)} placeholder="药品名" className="col-span-2 lg:col-span-1 p-4 rounded-xl bg-slate-50 border-none outline-none font-bold" />
                     <div className="flex bg-slate-50 rounded-xl p-2 items-center"><span className="text-[9px] font-black px-2 text-slate-400">总量</span><input type="number" value={stockAmount} onChange={(e) => setStockAmount(e.target.value)} className="w-full bg-transparent border-none outline-none font-bold" /></div>
                     <div className="flex bg-slate-50 rounded-xl p-2 items-center"><span className="text-[9px] font-black px-2 text-slate-400">剂量</span><input type="number" value={dosePerTime} onChange={(e) => setDosePerTime(e.target.value)} className="w-full bg-transparent border-none outline-none font-bold" /></div>
                     <div className="flex bg-slate-50 rounded-xl p-2 items-center"><span className="text-[9px] font-black px-2 text-slate-400">单位</span><input value={unit} onChange={(e) => setUnit(e.target.value)} className="w-full bg-transparent border-none outline-none font-bold text-teal-600" /></div>
                     <div className="flex bg-slate-50 rounded-xl p-2 items-center"><span className="text-[9px] font-black px-2 text-slate-400">频次/日</span><input type="number" value={timesPerDay} onChange={(e) => setTimesPerDay(e.target.value)} className="w-full bg-transparent border-none outline-none font-bold" /></div>
                 </div>
-                <button onClick={handleAddMed} className="w-full bg-slate-900 hover:bg-teal-500 text-white font-black py-4 rounded-xl transition-all active:scale-[0.98]">部署新补给 ➔</button>
+                <button onClick={handleAddMed} className="w-full bg-slate-900 hover:bg-teal-500 text-white font-black py-4 rounded-xl transition-all">部署新补给 ➔</button>
             </div>
 
+            {/* 主执行面板 */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 space-y-6">
-                    <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-2 ml-2"><Target size={16} /> 今日执行面板</h2>
-                    {/* 🚀 【DEFCON 全息战情中枢】(西装暴徒·纯白雅致版) */}
-                    <div className={`mb-8 bg-white rounded-[2.5rem] p-6 relative transition-all duration-700 border border-slate-100 ${tacticalStats.defcon.glow}`}>
-
-                        <div className="relative z-10 flex flex-col xl:flex-row justify-between items-center gap-6">
-
-                            {/* 🎯 左侧：DEFCON 战备等级 */}
-                            <div className="flex items-center gap-5 shrink-0 w-full xl:w-auto">
-                                <div className={`w-16 h-16 rounded-2xl border border-slate-100 flex flex-col items-center justify-center bg-slate-50 shadow-inner ${tacticalStats.defcon.color}`}>
-                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-50">Defcon</span>
-                                    <span className="text-3xl font-black leading-none drop-shadow-sm">{tacticalStats.defcon.level}</span>
+                    {/* DEFCON 战报区 */}
+                    <div className={`mb-8 bg-white rounded-[2.5rem] p-6 border border-slate-100 transition-all ${tacticalStats.defcon.glow}`}>
+                        <div className="flex flex-col xl:flex-row justify-between items-center gap-6">
+                            <div className="flex items-center gap-5 w-full xl:w-auto">
+                                <div className={`w-16 h-16 rounded-2xl border flex flex-col items-center justify-center bg-slate-50 ${tacticalStats.defcon.color}`}>
+                                    <span className="text-[10px] font-black uppercase opacity-50">Defcon</span>
+                                    <span className="text-3xl font-black leading-none">{tacticalStats.defcon.level}</span>
                                 </div>
                                 <div>
-                                    <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase flex items-center gap-3">
-                                        战情总控中枢
-                                        <span className={`text-[10px] px-2.5 py-1 rounded-full ${tacticalStats.defcon.bg} text-white font-black tracking-widest shadow-sm`}>
-                                            {tacticalStats.defcon.status}
-                                        </span>
-                                    </h2>
-                                    <p className="text-slate-400 text-[10px] font-black tracking-[0.3em] uppercase mt-1">
-                                        Global Operations Dashboard
-                                    </p>
+                                    <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase flex items-center gap-3">战情中枢 <span className={`text-[10px] px-2.5 py-1 rounded-full ${tacticalStats.defcon.bg} text-white font-black`}>{tacticalStats.defcon.status}</span></h2>
+                                    <p className="text-slate-400 text-[10px] font-black tracking-widest uppercase mt-1">Global Operations Dashboard</p>
                                 </div>
                             </div>
-
-                            {/* 📊 中间：今日战术目标进度 (卸下重甲，极简留白) */}
-                            <div className="flex-1 w-full xl:w-auto bg-slate-50/50 rounded-2xl p-5 border border-slate-100 shadow-sm flex flex-col justify-center">
+                            <div className="flex-1 w-full xl:w-auto bg-slate-50/50 rounded-2xl p-5 border border-slate-100 flex flex-col justify-center">
                                 <div className="flex justify-between items-end mb-3">
-                                    <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest whitespace-nowrap">
-                                        今日战术目标歼灭率
-                                    </span>
-                                    <span className="text-3xl font-black text-teal-500 leading-none tabular-nums drop-shadow-sm">
-                                        {tacticalStats.hitRate}%
-                                    </span>
+                                    <span className="text-slate-400 text-[10px] font-black uppercase">今日目标歼灭率</span>
+                                    <span className="text-3xl font-black text-teal-500">{tacticalStats.hitRate}%</span>
                                 </div>
-                                {/* 进度条轨道变浅，弹药高亮 */}
-                                <div className="h-2.5 w-full bg-slate-200/60 rounded-full overflow-hidden flex gap-1 p-0.5 shadow-inner">
+                                <div className="h-2.5 w-full bg-slate-200 rounded-full flex gap-1 p-0.5">
                                     {Array.from({ length: Math.max(tacticalStats.totalTargets, 1) }).map((_, i) => (
-                                        <div
-                                            key={i}
-                                            className={`h-full flex-1 rounded-full transition-all duration-1000 ease-out ${i < tacticalStats.destroyedTargets
-                                                ? 'bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.4)]'
-                                                : 'bg-slate-200'
-                                                }`}
-                                        />
+                                        <div key={i} className={`h-full flex-1 rounded-full ${i < tacticalStats.destroyedTargets ? 'bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.4)]' : 'bg-slate-200'}`} />
                                     ))}
                                 </div>
                             </div>
-
-                            {/* 💥 右侧：主炮发射钮 (精准火控联动版 + 快速拨片) */}
-                            <div className="shrink-0 w-full xl:w-auto flex flex-col items-center xl:items-end gap-2">
-
-                                {/* 🎯 实时锁定监视器 + 快速全选拨片 (我们要塞的新东西) */}
-                                <div className="flex items-center justify-between w-full mb-1 px-1 gap-4">
-                                    <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                        <span className="relative flex h-2.5 w-2.5">
-                                            {selectedIds.length > 0 && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>}
-                                            <span className={`relative inline-flex rounded-full h-2.5 w-2.5 transition-all ${selectedIds.length > 0 ? 'bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.5)]' : 'bg-slate-200'}`}></span>
-                                        </span>
-                                        Locked: <span className={selectedIds.length > 0 ? 'text-teal-600' : ''}>{selectedIds.length}</span>
+                            <div className="shrink-0 w-full xl:w-auto flex flex-col items-end gap-2">
+                                <div className="flex justify-between w-full px-1 gap-4">
+                                    <div className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2">
+                                        <div className={`w-2 h-2 rounded-full ${selectedIds.length > 0 ? 'bg-teal-500 animate-pulse' : 'bg-slate-300'}`} />
+                                        Locked: {selectedIds.length}
                                     </div>
-
-                                    <button
-                                        onClick={toggleSelectAll}
-                                        className="text-[9px] font-black uppercase tracking-[0.1em] px-2 py-1 rounded-md border border-slate-100 text-slate-400 hover:border-teal-300 hover:text-teal-600 hover:bg-teal-50 transition-all active:scale-95 whitespace-nowrap"
-                                    >
-                                        {selectedIds.length > 0 ? 'Deselect All' : 'Select All Ready'}
-                                    </button>
+                                    <button onClick={toggleSelectAll} className="text-[9px] font-black uppercase px-2 py-1 rounded-md border border-slate-200 text-slate-400 hover:text-teal-600 transition-all">{selectedIds.length > 0 ? 'Deselect All' : 'Select All Ready'}</button>
                                 </div>
-
-                                {/* 发射按钮主体 */}
-                                <button
-                                    onClick={handleSalvoFire}
-                                    disabled={selectedIds.length === 0}
-                                    className={`w-full xl:w-auto px-8 py-4 rounded-2xl font-black tracking-widest text-sm uppercase transition-all flex items-center justify-center gap-2 group relative overflow-hidden ${selectedIds.length > 0
-                                        ? 'bg-teal-50 hover:bg-teal-500 hover:text-white text-teal-600 border border-teal-200 shadow-sm hover:shadow-[0_8px_20px_rgba(20,184,166,0.3)] cursor-pointer'
-                                        : 'bg-slate-50 text-slate-300 border border-slate-100 cursor-not-allowed opacity-70'
-                                        }`}
-                                >
-                                    {selectedIds.length > 0 && <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:animate-[shimmer_1.5s_infinite]" />}
-                                    <CheckCircle2 size={20} className={selectedIds.length > 0 ? 'animate-pulse' : ''} />
-                                    一键全阵列齐射
+                                <button onClick={handleSalvoFire} disabled={selectedIds.length === 0} className={`w-full xl:w-auto px-8 py-4 rounded-2xl font-black text-sm uppercase transition-all flex items-center justify-center gap-2 ${selectedIds.length > 0 ? 'bg-teal-500 text-white shadow-lg hover:bg-teal-400 cursor-pointer' : 'bg-slate-100 text-slate-300 cursor-not-allowed'}`}>
+                                    <CheckCircle2 size={20} /> 一键全阵列齐射
                                 </button>
                             </div>
-
                         </div>
                     </div>
 
+                    {/* 药品列表 */}
                     {meds.map((med) => {
                         const todayCount = getTodayProgress(med.id);
-                        // ✅ 加上 med. 前缀，并给个 || 0 的兜底，防止数据还没传回来时报错
                         const isSelected = selectedIds.includes(med.id);
-                        const isCompleted = (med.todayCount || 0) >= med.times_per_day;
-                        const depletion = getDepletionInfo(med.stock_amount, med.times_per_day, med.dose_per_time);
+                        const isCompleted = todayCount >= med.times_per_day;
                         const radar = getRadarInfo(med.last_taken_at, med.times_per_day);
-
-                        // 🚨 【赤红警戒】火控雷达核心算法：计算剩余天数
-                        // 每日消耗量 = 每天吃几次 * 每次吃几颗
-                        const dailyBurnRate = med.times_per_day * med.dose_per_time;
-                        // 剩余天数 = 总库存 / 每日消耗量 (如果是按需服用的急救药，就默认算 999 天)
-                        const daysLeft = dailyBurnRate > 0 ? Math.floor(med.stock_amount / dailyBurnRate) : 999;
-                        // 只要撑不到 3 天，立刻拉响警报！
-                        const isLowAmmo = daysLeft <= 3 && med.times_per_day > 0;
-
+                        const isLowAmmo = (med.times_per_day > 0) && (med.stock_amount / (med.times_per_day * med.dose_per_time) <= 3);
 
                         return (
                             <div key={med.id} className="p-6 rounded-[2rem] border-2 transition-all bg-white border-slate-100 hover:border-teal-200">
                                 <div className="flex justify-between items-start mb-6">
-                                    <div>
-                                        {/* 🎯 锁定圆点 + 药名 (精准替换 709 行) */}
-                                        <div className="flex items-center gap-4 mb-2">
-                                            {!isCompleted ? (
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); toggleSelection(med.id); }}
-                                                    className={`shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${isSelected
-                                                            ? 'bg-teal-500 border-teal-500 shadow-[0_0_12px_rgba(20,184,166,0.5)]'
-                                                            : 'border-slate-300 bg-white hover:border-teal-400'
-                                                        }`}
-                                                >
-                                                    {isSelected && <CheckCircle2 size={18} className="text-white" />}
-                                                </button>
-                                            ) : (
-                                                <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200">
-                                                    <CheckCircle2 size={18} />
+                                    <div className="flex items-center gap-4">
+                                        {!isCompleted ? (
+                                            <button onClick={() => toggleSelection(med.id)} className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-teal-500 border-teal-500 shadow-[0_0_12px_rgba(20,184,166,0.5)]' : 'border-slate-300 hover:border-teal-400'}`}>
+                                                {isSelected && <CheckCircle2 size={16} className="text-white" />}
+                                            </button>
+                                        ) : (
+                                            <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200"><CheckCircle2 size={16} /></div>
+                                        )}
+                                        <div>
+                                            {/* 找到 meds.map 里的 h3 标签 */}
+                                            <h3 className={`text-2xl font-black transition-all ${stealth ? 'blur-md select-none' : ''}`}>
+                                                {stealth ? '••••••••' : med.name}
+                                            </h3>                                            {!stealth && med.times_per_day > 0 && (
+                                                <div className="mt-2">
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase">进度 {todayCount}/{med.times_per_day}</span>
+                                                    <div className="flex gap-1.5 w-40 mt-1">
+                                                        {Array.from({ length: med.times_per_day }).map((_, i) => (
+                                                            <div key={i} className={`h-1.5 flex-1 rounded-sm ${i < todayCount ? 'bg-teal-500 shadow-[0_0_5px_rgba(20,184,166,0.6)]' : 'bg-slate-100'}`} />
+                                                        ))}
+                                                    </div>
                                                 </div>
-                                            )}
-                                            <h3 className={`text-2xl font-black transition-all ${isSelected ? 'text-teal-700' : 'text-slate-800'}`}>
-                                                {med.name}
-                                            </h3>
-                                        </div>                                        <div className="mt-3">
-                                            {med.times_per_day === 0 ? (
-                                                <span className="text-[10px] font-black text-purple-500 uppercase tracking-widest mb-1 block">⚡ 战术急救补给 (按需使用)</span>
-                                            ) : (
-                                                // 🔒 关键：只有在“非防窥”状态下，才显示进度条和数字
-                                                !stealth && (
-                                                    <>
-                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">
-                                                            今日进度 {todayCount}/{med.times_per_day}
-                                                        </span>
-                                                        <div className="flex gap-1.5 w-48">
-                                                            {Array.from({ length: med.times_per_day }).map((_, i) => (
-                                                                <div key={i} className={`h-2 flex-1 rounded-sm transition-all duration-500 ${i < todayCount ? 'bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.6)]' : 'bg-slate-200'}`} />
-                                                            ))}
-                                                        </div>
-                                                    </>
-                                                )
                                             )}
                                         </div>
                                     </div>
-
-                                    {/* 🚀 修复后的操作面板：宽度自适应同步 */}
-                                    {/* 🚀 修复后的操作面板：使用固定宽度支架，严防“长面条”变形 */}
-                                    {/* 🚀 融合后的智能操作面板 */}
-                                    <div className="flex flex-col gap-3 w-24 items-end">
-
-                                        {/* 📦 智能补给终端：平时低调，告急时变异 */}
-                                        {/* 🚀 智能补给终端：平时是灰色箱子，没弹药时变红闪烁 */}
-                                        {/* 📦 智能补给终端 (融合赤红警戒) */}
-                                        <button
-                                            onClick={() => openRefillModal(med)}
-                                            className={`transition-all p-2 rounded-2xl w-full h-11 flex items-center justify-center border ${isLowAmmo
-                                                ? 'bg-red-50 text-red-500 border-red-200 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.2)]'
-                                                : 'bg-slate-50 text-slate-300 border-slate-100/50 hover:text-teal-500 hover:bg-white'
-                                                }`}
-                                            title={isLowAmmo ? "警告：库存极低！点击补弹" : "呼叫补给"}
-                                        >
-                                            <PackagePlus size={18} />
-                                            {isLowAmmo && <span className="text-[10px] font-black ml-1">补弹!</span>}
+                                    <div className="flex flex-col gap-2 w-24">
+                                        <button onClick={() => openRefillModal(med)} className={`p-2 rounded-2xl border flex items-center justify-center gap-2 ${isLowAmmo ? 'bg-red-50 text-red-500 border-red-200 animate-pulse' : 'bg-slate-50 text-slate-300 border-slate-100'}`}>
+                                            <PackagePlus size={18} /> {isLowAmmo && <span className="text-[9px] font-black">补药</span>}
                                         </button>
-
-                                        {/* 2. 🛡️ 神盾防误触按钮 */}
-                                        <button
-                                            onClick={() => handleDeleteClick(med.id)}
-                                            className={`transition-all h-11 rounded-2xl flex items-center justify-center gap-1 shadow-sm ${armedId === med.id
-                                                ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.3)] animate-pulse w-full'
-                                                : 'text-slate-300 hover:text-red-500 bg-slate-50 w-full border border-slate-100/50'
-                                                }`}
-                                        >
-                                            {armedId === med.id ? (
-                                                <><Trash2 size={14} /><span className="text-[10px] font-black">确认?</span></>
-                                            ) : (
-                                                <Trash2 size={18} />
-                                            )}
+                                        <button onClick={() => handleDeleteClick(med.id)} className={`p-2 rounded-2xl flex items-center justify-center gap-2 ${armedId === med.id ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-50 text-slate-300 hover:text-red-500 border border-slate-100'}`}>
+                                            <Trash2 size={18} /> {armedId === med.id && <span className="text-[9px] font-black">确认?</span>}
                                         </button>
                                     </div>
                                 </div>
-
-                                {/* 🚀 升级后的战术底盘 */}
-                                <div className="flex items-center justify-between gap-4 border-t border-slate-100/50 pt-4 mt-4">
-                                    <div className="flex flex-col gap-2">
-                                        {/* 余量警告 */}
-                                        {/* 🚨 底部情报区：显示余量并带预警 */}
-                                        {/* 🚨 底部情报区：一体化战术状态胶囊 */}
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest w-8">余量</span>
-
-                                            {/* 🚀 熔接外壳：控制整体圆角和阴影 */}
-                                            <div className={`flex items-stretch rounded-full border transition-all overflow-hidden ${isLowAmmo
-                                                ? 'border-red-300 shadow-[0_2px_15px_rgba(239,68,68,0.2)]'
-                                                : 'border-slate-200 bg-white shadow-sm'
-                                                }`}>
-
-                                                {/* 📊 数据核心舱 */}
-                                                <div className={`flex items-baseline gap-1 px-3 py-1.5 ${isLowAmmo ? 'bg-red-50 text-red-600' : 'text-slate-700'}`}>
-                                                    <span className="text-base font-black leading-none">{med.stock_amount}</span>
-                                                    <span className="text-[10px] font-bold opacity-70 leading-none">{med.unit}</span>
-                                                </div>
-
-                                                {/* 🚨 警报扩展舱 (仅在低弹药时无缝伸出) */}
-                                                {isLowAmmo && (
-                                                    <div className="bg-red-500 text-white px-3 flex items-center justify-center text-[10px] font-black tracking-widest animate-pulse">
-                                                        ⚠️ 仅剩 {daysLeft} 天
-                                                    </div>
-                                                )}
-
+                                <div className="flex items-center justify-between border-t pt-4">
+                                    <div className="flex gap-6">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase">余量</span>
+                                            <div className={`px-3 py-1 rounded-full border text-xs font-black ${isLowAmmo ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-700 border-slate-100'}`}>{med.stock_amount} {med.unit}</div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase">雷达</span>
+                                            <div className={`px-3 py-1 rounded-full border text-[10px] font-black flex items-center gap-1.5 ${radar.bg} ${radar.color}`}>
+                                                <Timer size={12} /> {radar.text}
                                             </div>
                                         </div>
-                                        {/* 冷却雷达 */}
-                                        {/* 📡 终极双核雷达：满配重装底盘，解决头重脚轻 */}
-                                        <div className="flex items-center gap-3 mt-5">
-                                            {/* 锁定 w-8 让“余量”和“雷达”完美左对齐 */}
-                                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest w-8">雷达</span>
-
-                                            {isCompleted ? (
-                                                /* ✅ 达成待机 */
-                                                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 shadow-sm transition-all h-[30px]">
-                                                    <CheckCircle2 size={14} className="opacity-80" />
-                                                    <span className="text-[11px] font-black tracking-widest leading-none mt-[1px]">
-                                                        任务达成 · 归位待机
-                                                    </span>
-                                                </div>
-                                            ) : (
-                                                /* ⏱ 运行冷却：加满底色 (bg-orange-50)，字号调大至 text-[11px]，高度锁死 h-[30px] 配合上面的胶囊 */
-                                                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border shadow-[0_2px_12px_rgba(249,115,22,0.15)] transition-all h-[30px] ${typeof radar !== 'undefined' ? (radar.bg.includes('bg-') ? radar.bg : 'bg-orange-50') + ' ' + radar.color : 'bg-orange-100 text-orange-600 '}`}>
-                                                    <Timer size={14} className="animate-pulse opacity-80" />
-                                                    <span className="text-[11px] font-black tracking-widest leading-none mt-[1px]">
-                                                        {typeof radar !== 'undefined' ? radar.text : '冷却中 6h 9m'}
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
                                     </div>
-
-                                    {/* 发射按钮动态化 */}
-                                    {!isCompleted && med.times_per_day > 0 ? (
-                                        <div className="bg-emerald-50 text-emerald-600 px-6 py-4 rounded-2xl font-black text-[10px] flex items-center gap-2 border border-emerald-200"><ShieldCheck size={16} /> 今日已达标</div>
-                                    ) : (
-                                        <button
-                                            onClick={() => handleTakeMedClick(med)}
-                                            // ⚡ 如果是急救药(次为0)，按钮变成专属的紫色涂装
-                                            className={`${med.times_per_day === 0 ? 'bg-purple-600 hover:bg-purple-500' : (radar.allow ? 'bg-slate-900 hover:bg-teal-500' : 'bg-orange-500 hover:bg-orange-600')} text-white px-6 py-4 rounded-2xl font-black text-[10px] active:scale-95 transition-all shadow-md flex items-center gap-2`}
-                                        >
-                                            {med.times_per_day === 0 ? `⚡ 紧急${['支', '针', 'ml'].includes(med.unit) ? '注射' : '服用'} ${med.dose_per_time}${med.unit}` :
-                                                (radar.allow
-                                                    ? `确认${['支', '针', 'ml'].includes(med.unit) ? '注射' : '服用'} ${med.dose_per_time}${med.unit}`
-                                                    : `强制越权${['支', '针', 'ml'].includes(med.unit) ? '注射' : '服用'}`
-                                                )}
+                                    {!isCompleted ? (
+                                        <button onClick={() => handleTakeMedClick(med)} className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase transition-all shadow-md ${radar.allow ? 'bg-slate-900 text-white hover:bg-teal-500' : 'bg-orange-500 text-white hover:bg-orange-600'}`}>
+                                            确认执行 {med.dose_per_time}{med.unit}
                                         </button>
+                                    ) : (
+                                        <div className="px-6 py-3 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100 font-black text-[10px] flex items-center gap-2">
+                                            <ShieldCheck size={14} /> 今日已达标
+                                        </div>
                                     )}
                                 </div>
                             </div>
@@ -861,17 +483,21 @@ export default function MedicineGuide() {
                     })}
                 </div>
 
+                {/* 右侧记录 */}
                 <div className="space-y-4">
-                    <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-2 ml-2"><Clock size={16} /> 实时用药记录</h2>
-                    <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 min-h-[400px]">
-                        <div className="space-y-5">
-                            {logs.slice(0, 8).map((log) => (
+                    <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 ml-2"><Clock size={16} /> 实时用药记录</h2>
+                    <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 min-h-[400px] max-h-[800px] overflow-y-auto">
+                        <div className="space-y-4">
+                            {logs.slice(0, 15).map((log) => (
                                 <div key={log.id} className="flex items-start gap-3 border-b border-slate-50 pb-3">
-                                    <div className="w-2 h-2 mt-1.5 rounded-full bg-teal-400 shadow-[0_0_5px_rgba(20,184,166,0.5)]" />
+                                    <div className="w-1.5 h-1.5 mt-1.5 rounded-full bg-teal-400" />
+                                    {/* 找到右侧 logs.slice(0, 15).map 循环内部 */}
                                     <div className="flex-1">
-                                        <p className="text-xs font-black text-slate-800">{log.medicine_name}</p>
-                                        <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">
-                                            {new Date(log.taken_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                        <p className={`text-xs font-black text-slate-800 transition-all ${stealth ? 'blur-sm select-none' : ''}`}>
+                                            {stealth ? 'CLASSIFIED_LOG' : log.medicine_name}
+                                        </p>
+                                        <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">
+                                            {new Date(log.taken_at).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                         </p>
                                     </div>
                                 </div>
@@ -879,81 +505,88 @@ export default function MedicineGuide() {
                         </div>
                     </div>
                 </div>
-                {/* --- 粘在倒数第二个 </div> 之前 --- */}
-
-                {/* ==================== 🚀 战术底盘装甲区 (全量覆盖) ==================== */}
-
-                {/* 1. 战术通知 (Toast) */}
-                {toast.show && (
-                    <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] transition-all">
-                        <div className="bg-slate-900 border-2 border-teal-500/50 text-white px-8 py-3 rounded-full shadow-[0_0_20px_rgba(20,184,166,0.3)] flex items-center gap-3 backdrop-blur-md">
-                            <div className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
-                            <span className="text-[10px] font-black italic tracking-widest uppercase">
-                                {/* 🔒 逻辑：如果开启防窥，不管提示啥，都显示“静默协议”；否则显示真实提示 */}
-                                {stealth ? '静默协议执行：机密目标 [信息受控]' : toast.msg}
-                            </span>
-                        </div>
-                    </div>
-                )}
-
-                {/* 2. 补给模态框 (Refill Modal - 你刚才弄丢的那个！) */}
-                {isRefillOpen && (
-                    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsRefillOpen(false)} />
-                        <div className="relative bg-white rounded-[3rem] p-8 w-full max-w-sm border-4 border-slate-800 shadow-2xl">
-                            <div className="text-center mb-6">
-                                <div className="inline-block p-3 rounded-2xl bg-teal-50 text-teal-500 mb-4">
-                                    <PackagePlus size={32} />
-                                </div>
-                                <h3 className="text-2xl font-black italic text-slate-900 uppercase">战术补给请求</h3>
-                                <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">
-                                    Target: <span className="text-teal-500">{selectedMed?.name}</span>
-                                </p>
-                            </div>
-                            <div className="space-y-4 mb-8">
-                                <div className="bg-slate-50 p-4 rounded-2xl border-2 border-transparent focus-within:border-teal-400 transition-all">
-                                    <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">空投数量 ({selectedMed?.unit})</span>
-                                    <input type="number" autoFocus value={refillValue} onChange={(e) => setRefillValue(e.target.value)}
-                                        className="w-full bg-transparent border-none outline-none text-2xl font-black text-slate-800" />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <button onClick={() => setIsRefillOpen(false)} className="py-4 rounded-2xl font-black text-xs uppercase text-slate-400 hover:bg-slate-50 transition-all">取消</button>
-                                <button onClick={confirmRefill} className="bg-slate-900 hover:bg-teal-500 text-white py-4 rounded-2xl font-black text-xs uppercase transition-all shadow-lg">确认空投 ➔</button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* 3. 量子回溯模态框 (Retroactive Modal) */}
-                {retroMed && (
-                    <div className="fixed inset-0 z-[95] flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setRetroMed(null)} />
-                        <div className="relative bg-slate-900 rounded-[3rem] p-8 w-full max-w-md border-2 border-red-500/50 shadow-[0_0_50px_rgba(239,68,68,0.2)]">
-                            <div className="text-center mb-8">
-                                <div className="inline-block p-4 rounded-full bg-red-500/10 text-red-500 mb-4 animate-pulse">
-                                    <History size={36} />
-                                </div>
-                                <h3 className="text-xl font-black italic text-white uppercase tracking-widest">时间线修正请求</h3>
-                                <p className="text-xs font-bold text-slate-400 mt-2">
-                                    探测到 <span className="text-teal-400">{stealth ? '【机密目标】' : retroMed.name}</span> 严重超时。<br />
-                                    您是刚刚执行了操作，还是为了补录错过的记录？
-                                </p>
-                            </div>
-                            <div className="flex flex-col gap-4">
-                                <button onClick={() => executeTakeMed(retroMed, new Date())} className="bg-slate-800 hover:bg-slate-700 text-white py-4 rounded-2xl font-black text-sm transition-all border border-slate-700">
-                                    🕒 刚刚才吃 (按此刻时间记录)
-                                </button>
-                                <button onClick={confirmRetroactive} className="bg-red-500 hover:bg-red-600 text-white py-4 rounded-2xl font-black text-sm transition-all shadow-lg">
-                                    ⚡ 量子回溯 (自动补录到完美时间点)
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
             </div>
 
+            {/* --- 🚀 战术底盘装甲 (弹窗区) --- */}
+            {toast.show && (
+                <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] animate-bounce">
+                    <div className="bg-slate-900 border-2 border-teal-500 text-white px-8 py-3 rounded-full shadow-2xl flex items-center gap-3 backdrop-blur-md">
+                        <div className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
+                        <span className="text-[10px] font-black tracking-widest uppercase">{stealth ? '静默协议执行：机密目标 [信息受控]' : toast.msg}</span>
+                    </div>
+                </div>
+            )}
+
+            {showFireModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+                    <div className="bg-white rounded-[2rem] w-full max-w-sm shadow-2xl border border-slate-100 overflow-hidden transform transition-all scale-100">
+                        <div className="bg-slate-50 p-6 pb-5 border-b border-slate-100 flex flex-col items-center gap-3">
+                            <div className="w-14 h-14 rounded-full bg-teal-100 flex items-center justify-center relative shadow-inner">
+                                <div className="absolute inset-0 rounded-full border-2 border-teal-400 animate-ping opacity-25" />
+                                <CheckCircle2 size={28} className="text-teal-600" />
+                            </div>
+                            <h2 className="text-xl font-black text-slate-800 tracking-widest uppercase">确认齐射指令</h2>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                <span>Locked Targets</span>
+                                <span className="text-teal-500 bg-teal-50 px-2 py-1 rounded-md">{selectedIds.length} 项</span>
+                            </div>
+                            <div className="max-h-[30vh] overflow-y-auto space-y-2">
+                                {meds.filter(m => selectedIds.includes(m.id) && getTodayProgress(m.id) < m.times_per_day).map(med => (
+                                    <div key={med.id} className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                        <div className="w-2 h-2 rounded-full bg-teal-400 shadow-sm" />
+                                        <span className="font-bold text-slate-700 text-sm truncate">{stealth ? '【隐藏模式目标】' : med.name}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="pt-2 text-center">
+                                <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-4 py-2 rounded-xl inline-block">执行后今日进度将全面 <span className="text-teal-500 font-black">+1</span></span>
+                            </div>
+                        </div>
+                        <div className="p-4 bg-slate-50/50 flex gap-3">
+                            <button onClick={() => setShowFireModal(false)} className="flex-1 py-4 rounded-xl font-black text-xs text-slate-400 border border-slate-200 hover:bg-white transition-all">取消待命</button>
+                            <button onClick={executeSalvo} className="flex-1 py-4 rounded-xl font-black text-xs text-white bg-teal-500 shadow-lg hover:bg-teal-400 transition-all">确定执行</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isRefillOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                    <div className="relative bg-white rounded-[3rem] p-8 w-full max-w-sm border-4 border-slate-800 shadow-2xl">
+                        <div className="text-center mb-6">
+                            <div className="inline-block p-3 rounded-2xl bg-teal-50 text-teal-500 mb-4"><PackagePlus size={32} /></div>
+                            <h3 className="text-2xl font-black italic text-slate-900 uppercase">战术补给请求</h3>
+                            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Target: <span className="text-teal-500">{selectedMed?.name}</span></p>
+                        </div>
+                        <div className="bg-slate-50 p-4 rounded-2xl border-2 border-transparent focus-within:border-teal-400 transition-all mb-8">
+                            <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">空投数量 ({selectedMed?.unit})</span>
+                            <input type="number" autoFocus value={refillValue} onChange={(e) => setRefillValue(e.target.value)} className="w-full bg-transparent border-none outline-none text-2xl font-black text-slate-800" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button onClick={() => setIsRefillOpen(false)} className="py-4 rounded-2xl font-black text-xs uppercase text-slate-400 hover:bg-slate-50 transition-all">取消</button>
+                            <button onClick={confirmRefill} className="bg-slate-900 hover:bg-teal-500 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-lg">确认空投 ➔</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {retroMed && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
+                    <div className="relative bg-slate-900 rounded-[3rem] p-8 w-full max-w-md border-2 border-red-500/50 shadow-2xl">
+                        <div className="text-center mb-8">
+                            <div className="inline-block p-4 rounded-full bg-red-500/10 text-red-500 mb-4 animate-pulse"><History size={36} /></div>
+                            <h3 className="text-xl font-black italic text-white uppercase tracking-widest">时间线修正请求</h3>
+                            <p className="text-xs font-bold text-slate-400 mt-2">探测到 <span className="text-teal-400">{stealth ? '【机密目标】' : retroMed.name}</span> 严重超时。<br />您是刚刚执行了操作，还是为了补录错过的记录？</p>
+                        </div>
+                        <div className="flex flex-col gap-4">
+                            <button onClick={() => executeTakeMed(retroMed, new Date())} className="bg-slate-800 hover:bg-slate-700 text-white py-4 rounded-2xl font-black text-sm border border-slate-700">🕒 刚刚才吃 (按此刻时间记录)</button>
+                            <button onClick={confirmRetroactive} className="bg-red-500 hover:bg-red-600 text-white py-4 rounded-2xl font-black text-sm shadow-lg">⚡ 量子回溯 (自动补录到完美时间点)</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
-}
+} // <--- 只有这一个大门，彻底关闭组件！
