@@ -20,7 +20,7 @@ export default function Home() {
             <ShieldCheck size={12} /> Cyber Medical Defense
           </motion.div>
 
-          <motion.h1 
+          {/* <motion.h1 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
@@ -28,9 +28,9 @@ export default function Home() {
           >
             过期药物 <br />
             <span className="text-red-500 italic uppercase">Silent Killer.</span>
-          </motion.h1>
+          </motion.h1> */}
 
-          <motion.p 
+          {/* <motion.p 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
@@ -38,7 +38,7 @@ export default function Home() {
           >
             不仅仅是药效减弱。化学结构的降解将产生未知的细胞毒性，
             为你的肝肾代谢系统埋下致命伏笔。
-          </motion.p>
+          </motion.p> */}
 
           <motion.div 
             initial={{ opacity: 0, scale: 0.9 }}
@@ -46,16 +46,16 @@ export default function Home() {
             transition={{ delay: 0.3 }}
             className="flex flex-wrap justify-center gap-4"
           >
-            <button className="px-10 py-4 bg-slate-900 text-white text-sm font-bold rounded-full hover:bg-red-600 transition-all active:scale-95 will-change-transform">
+            {/* <button className="px-10 py-4 bg-slate-900 text-white text-sm font-bold rounded-full hover:bg-red-600 transition-all active:scale-95 will-change-transform">
               立即扫描药箱
-            </button>
+            </button> */}
             {/* 注意：这里的闭合标签现在是正确的 motion.div 了 */}
           </motion.div> 
         </div>
       </section>
 
       {/* 演示卡片区 */}
-      <section className="max-w-5xl mx-auto px-6 pb-32">
+      {/* <section className="max-w-5xl mx-auto px-6 pb-32">
         <div className="grid md:grid-cols-2 gap-6">
           <HazardCard 
             title="肝脏代谢过载" 
@@ -70,7 +70,7 @@ export default function Home() {
             metric="+18% 血肌酐"
           />
         </div>
-      </section>
+      </section> */}
     </main>
   );
 }
