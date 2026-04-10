@@ -1,111 +1,22 @@
+// MedicineGuide.tsx 顶部
 "use client";
+import { useRouter } from 'next/navigation';
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from './supabaseClient';
 import { Trash2, Activity, CheckCircle2, Clock, Target, ShoppingCart, Flame, BarChart3, HeartPulse, LogOut, KeyRound, User, ShieldCheck, Radar, PackagePlus, Download, Timer, Eye, EyeOff, History } from 'lucide-react';
-// 📦 内置战术微型药典：囊括 90% 日常使用场景
-const MEDICINE_DB = [
-    {
-        category: "🤒 感冒发烧",
-        items: [
-            { name: "布洛芬缓释胶囊", unit: "粒", times: 2, dose: 1 },
-            { name: "对乙酰氨基酚片", unit: "片", times: 3, dose: 1 },
-            { name: "连花清瘟胶囊", unit: "粒", times: 3, dose: 4 },
-            { name: "999感冒灵颗粒", unit: "包", times: 3, dose: 1 },
-            { name: "复方氨酚烷胺片", unit: "片", times: 2, dose: 1 }
-        ]
-    },
-    {
-        category: "💊 消炎抗感染",
-        items: [
-            { name: "阿莫西林胶囊", unit: "粒", times: 3, dose: 2 },
-            { name: "头孢克肟分散片", unit: "片", times: 2, dose: 1 },
-            { name: "罗红霉素胶囊", unit: "粒", times: 2, dose: 1 },
-            { name: "左氧氟沙星片", unit: "片", times: 1, dose: 1 }
-        ]
-    },
-    {
-        category: "🍵 肠胃消化",
-        items: [
-            { name: "健胃消食片", unit: "片", times: 3, dose: 3 },
-            { name: "奥美拉唑肠溶胶囊", unit: "粒", times: 2, dose: 1 },
-            { name: "蒙脱石散", unit: "包", times: 3, dose: 1 },
-            { name: "多潘立酮片(吗丁啉)", unit: "片", times: 3, dose: 1 }
-        ]
-    },
-    {
-        category: "🤧 过敏/外用",
-        items: [
-            { name: "氯雷他定片", unit: "片", times: 1, dose: 1 },
-            { name: "盐酸西缇利嗪片", unit: "片", times: 1, dose: 1 },
-            { name: "红霉素软膏", unit: "支", times: 2, dose: 1 },
-            { name: "创可贴", unit: "片", times: 0, dose: 1 } // times: 0 代表按需使用
-        ]
-    },
-    {
-        category: "🍎 保健/慢病",
-        items: [
-            { name: "复合维生素B片", unit: "片", times: 1, dose: 1 },
-            { name: "碳酸钙D3片", unit: "片", times: 1, dose: 1 },
-            { name: "降压药(自定义)", unit: "片", times: 1, dose: 1 },
-            { name: "降糖药(自定义)", unit: "片", times: 1, dose: 1 }
-        ]
-    }
-];
 
-
-// --- 🚀 全局黑科技插件 (放在组件外面) ---
-const playSciFiSound = (type: 'login' | 'success' | 'warning') => {
-    try {
-        const AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
-        if (!AudioContext) return;
-        const ctx = new AudioContext();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        if (type === 'login') {
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(200, ctx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(1000, ctx.currentTime + 0.4);
-            gain.gain.setValueAtTime(0, ctx.currentTime); gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.1);
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-            osc.start(); osc.stop(ctx.currentTime + 0.5);
-            if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([60, 80, 60]);
-        } else if (type === 'success') {
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(800, ctx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
-            gain.gain.setValueAtTime(0.1, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-            osc.start(); osc.stop(ctx.currentTime + 0.15);
-            if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([30, 50, 30]);
-        } else {
-            osc.type = 'square'; osc.frequency.setValueAtTime(150, ctx.currentTime);
-            gain.gain.setValueAtTime(0.1, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-            osc.start(); osc.stop(ctx.currentTime + 0.4);
-            if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([100, 50, 100]);
-        }
-    } catch (e) { console.log('音频引擎未激活'); }
-};
-
-const speakTacticalVoice = (text: string) => {
-    try {
-        if (!('speechSynthesis' in window)) return;
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'zh-CN';
-        utterance.rate = 1.1;
-        utterance.pitch = 0.5;
-        utterance.volume = 1;
-        window.speechSynthesis.speak(utterance);
-    } catch (e) { console.log('语音副官未激活'); }
-};
+// 🚀 从外部武备库挂载模块
+import { CONFLICT_MATRIX, MEDICINE_DB } from '../constants/tacticalData';
+import { playSciFiSound, speakTacticalVoice } from '../utils/audioEngine';
 
 // --- 🛠️ 主机甲核心：MedicineGuide ---
 export default function MedicineGuide() {
+    const router = useRouter();
     // 1. 🧠 【指挥中心】状态记忆区
     const [session, setSession] = useState<any>(null);
-
+    // 🛡️ A.E.G.I.S. 神盾拦截状态
+    const [conflictAlert, setConflictAlert] = useState<{ med: any, msg: string } | null>(null);
+    const [overrideTimer, setOverrideTimer] = useState(5); // 5秒强制越权倒计时
     const [meds, setMeds] = useState<any[]>([]);
     const [logs, setLogs] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
@@ -247,9 +158,57 @@ export default function MedicineGuide() {
     };
 
     const handleTakeMedClick = (med: any) => {
+        // 1. 🛑 神盾拦截扫描：调出今天的作战日志
+        const todayLogs = logs.filter(log => new Date(log.taken_at).toDateString() === new Date().toDateString());
+
+        let triggerConflict = null;
+
+        // 2. 匹配弹药类型：当前这颗药属于哪个高危组？
+        const currentGroup = CONFLICT_MATRIX.find(matrix => matrix.keywords.some(kw => med.name.includes(kw)));
+
+        if (currentGroup) {
+            // 3. 雷达回波扫描：今天有没有吃过同组的、但名字不一样的药？
+            const conflictingLog = todayLogs.find(log =>
+                log.medicine_id !== med.id &&  // 不是这颗药本身
+                currentGroup.keywords.some(kw => log.medicine_name.includes(kw))
+            );
+
+            if (conflictingLog) {
+                // 💥 触发死锁！
+                triggerConflict = {
+                    med: med,
+                    msg: `${currentGroup.alertMsg}\n\n[锁定源]：今日已服用 "${conflictingLog.medicine_name}"`
+                };
+            }
+        }
+
+        // 4. 执行拦截协议！
+        if (triggerConflict) {
+            setConflictAlert(triggerConflict);
+            setOverrideTimer(5); // 重置 5 秒保险栓
+            playSciFiSound('warning');
+            if (typeof speakTacticalVoice !== 'undefined') {
+                speakTacticalVoice('警告！侦测到高危交叉火力，火控系统已锁定！');
+            }
+
+            // 启动 5 秒强制冷静倒计时
+            let timeLeft = 5;
+            const timer = setInterval(() => {
+                timeLeft -= 1;
+                setOverrideTimer(timeLeft);
+                if (timeLeft <= 0) clearInterval(timer);
+            }, 1000);
+            return; // ⛔ 强行截断，下面的原代码不执行了
+        }
+
+        // 5. 没冲突？放行！走原来的雷达和回溯逻辑
         const radar = getRadarInfo(med.last_taken_at, med.times_per_day);
-        if (radar.status === 'OVERDUE') { setRetroMed(med); playSciFiSound('warning'); }
-        else executeTakeMed(med, new Date());
+        if (radar.status === 'OVERDUE') {
+            setRetroMed(med);
+            playSciFiSound('warning');
+        } else {
+            executeTakeMed(med, new Date());
+        }
     };
 
     const executeTakeMed = async (med: any, executionTime: Date) => {
@@ -530,7 +489,12 @@ export default function MedicineGuide() {
                             <div className="flex-1 w-full xl:w-auto bg-slate-50/50 rounded-2xl p-5 border border-slate-100 flex flex-col justify-center">
                                 <div className="flex justify-between items-end mb-3">
                                     <span className="text-slate-400 text-[10px] font-black uppercase">今日目标歼灭率</span>
-                                    <span className="text-3xl font-black text-teal-500">{tacticalStats.hitRate}%</span>
+                                    {/* 🎯 找到战情中枢显示百分比的地方 */}
+                                    <span className={`text-3xl font-black text-teal-500 leading-none tabular-nums drop-shadow-sm transition-all ${stealth ? 'blur-lg select-none' : ''
+                                        }`}>
+                                        {/* 🔒 逻辑：防窥开启时显示 88，关闭时显示真实数据 */}
+                                        {stealth ? '88' : tacticalStats.hitRate}%
+                                    </span>
                                 </div>
                                 <div className="h-2.5 w-full bg-slate-200 rounded-full flex gap-1 p-0.5">
                                     {Array.from({ length: Math.max(tacticalStats.totalTargets, 1) }).map((_, i) => (
@@ -628,6 +592,12 @@ export default function MedicineGuide() {
                 {/* 右侧记录 */}
                 <div className="space-y-4">
                     <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 ml-2"><Clock size={16} /> 实时用药记录</h2>
+                    <button
+                        onClick={() => router.push('/arsenal')}
+                        className="text-[10px] font-black uppercase text-teal-500 hover:text-teal-400 flex items-center gap-1 transition-all"
+                    >
+                        进入全息日志大屏 ➔
+                    </button>
                     <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 min-h-[400px] max-h-[800px] overflow-y-auto">
                         <div className="space-y-4">
                             {logs.slice(0, 15).map((log) => (
@@ -649,12 +619,46 @@ export default function MedicineGuide() {
                 </div>
             </div>
 
-            {/* --- 🚀 战术底盘装甲 (弹窗区) --- */}
-            {toast.show && (
-                <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] animate-bounce">
-                    <div className="bg-slate-900 border-2 border-teal-500 text-white px-8 py-3 rounded-full shadow-2xl flex items-center gap-3 backdrop-blur-md">
-                        <div className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
-                        <span className="text-[10px] font-black tracking-widest uppercase">{stealth ? '静默协议执行：机密目标 [信息受控]' : toast.msg}</span>
+            {/* ==================== 🚨 A.E.G.I.S. 交叉火力拦截弹窗 ==================== */}
+            {conflictAlert && (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-red-950/90 backdrop-blur-lg">
+                    <div className="relative bg-slate-900 rounded-[3rem] p-8 w-full max-w-md border-4 border-red-600 shadow-[0_0_100px_rgba(239,68,68,0.4)]">
+
+                        {/* 顶部高危爆闪灯 */}
+                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-1.5 bg-red-500 rounded-b-full shadow-[0_0_20px_rgba(239,68,68,1)] animate-pulse" />
+
+                        <div className="text-center mb-8 mt-4">
+                            <div className="inline-block p-5 rounded-full bg-red-500 text-white mb-6 shadow-[0_0_40px_rgba(239,68,68,0.8)] animate-pulse">
+                                <ShieldCheck size={56} />
+                            </div>
+                            <h3 className="text-3xl font-black italic text-red-500 uppercase tracking-widest drop-shadow-md">A.E.G.I.S. 拦截协议</h3>
+                            <p className="text-sm font-bold text-slate-300 mt-6 whitespace-pre-line leading-relaxed px-4">
+                                {conflictAlert.msg}
+                            </p>
+                        </div>
+
+                        <div className="flex flex-col gap-4">
+                            <button
+                                onClick={() => setConflictAlert(null)}
+                                className="bg-slate-800 hover:bg-slate-700 text-white py-5 rounded-2xl font-black text-sm border-2 border-slate-700 transition-all"
+                            >
+                                🛡️ 听劝！取消部署
+                            </button>
+                            <button
+                                disabled={overrideTimer > 0}
+                                onClick={() => {
+                                    // 🔪 强行越权，暴力执行！
+                                    setConflictAlert(null);
+                                    executeTakeMed(conflictAlert.med, new Date());
+                                }}
+                                className={`py-5 rounded-2xl font-black text-sm transition-all ${overrideTimer > 0
+                                    ? 'bg-slate-900 text-slate-600 border-2 border-red-900/30 cursor-not-allowed'
+                                    : 'bg-red-600 hover:bg-red-500 text-white shadow-[0_0_30px_rgba(239,68,68,0.6)] border-2 border-red-500'
+                                    }`}
+                            >
+                                {overrideTimer > 0 ? `🚨 强行越权锁定 (${overrideTimer}s)` : '⚠️ 了解风险，强行授权发射'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -700,8 +704,11 @@ export default function MedicineGuide() {
                         <div className="text-center mb-6">
                             <div className="inline-block p-3 rounded-2xl bg-teal-50 text-teal-500 mb-4"><PackagePlus size={32} /></div>
                             <h3 className="text-2xl font-black italic text-slate-900 uppercase">战术补给请求</h3>
-                            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Target: <span className="text-teal-500">{selectedMed?.name}</span></p>
-                        </div>
+                            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">
+                                Target: <span className={`text-teal-500 transition-all ${stealth ? 'blur-sm select-none' : ''}`}>
+                                    {stealth ? 'CLASSIFIED_TARGET' : selectedMed?.name}
+                                </span>
+                            </p>                        </div>
                         <div className="bg-slate-50 p-4 rounded-2xl border-2 border-transparent focus-within:border-teal-400 transition-all mb-8">
                             <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">空投数量 ({selectedMed?.unit})</span>
                             <input type="number" autoFocus value={refillValue} onChange={(e) => setRefillValue(e.target.value)} className="w-full bg-transparent border-none outline-none text-2xl font-black text-slate-800" />
