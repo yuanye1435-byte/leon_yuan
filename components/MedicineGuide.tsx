@@ -436,18 +436,31 @@ export default function MedicineGuide() {
                     <div className="flex items-center gap-2 text-slate-400 mb-4 text-xs font-bold uppercase tracking-widest"><Flame size={16} className="text-orange-500" /> 战术连胜</div>
                     <div className="flex items-end gap-3"><div className="text-6xl font-black italic tracking-tighter text-slate-800">{currentStreak}</div><div className="text-sm font-bold text-slate-400 mb-2">DAYS</div></div>
                 </div>
-                <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100">
-                    <div className="flex items-center gap-2 text-slate-400 mb-4 text-xs font-bold uppercase tracking-widest"><BarChart3 size={16} className="text-teal-500" /> 行动热力矩阵</div>
-                    <div className="flex gap-2 h-16 items-end justify-between">
-                        {last7DaysHeatmap.map((day, i) => {
-                            let bg = 'bg-slate-100'; if (day.count > 0) bg = 'bg-teal-200'; if (day.count > 2) bg = 'bg-teal-400'; if (day.count > 4) bg = 'bg-teal-600';
-                            return (
-                                <div key={i} className="flex flex-col items-center gap-2 w-full">
-                                    <div className={`w-full rounded-md transition-all duration-500 ${bg}`} style={{ height: Math.max(12, Math.min(day.count * 10, 48)) + 'px' }} />
-                                    <span className="text-[9px] font-black px-2 text-slate-400">频次/日<br />(0为急救)</span>
-                                </div>
-                            );
-                        })}
+                {/* 🚀 修复后的行动热力矩阵 - 强制 7 列，溢出隐藏 */}
+                <div className="bg-white rounded-[2.5rem] p-8 border-2 border-slate-100 flex-1 min-h-[300px] overflow-hidden">
+                    <div className="flex items-center gap-2 mb-6">
+                        <div className="text-teal-500"><Activity size={20} /></div>
+                        <h3 className="text-sm font-black italic text-slate-400 uppercase tracking-widest">行动热力矩阵</h3>
+                    </div>
+
+                    {/* 🔒 关键修复：使用 grid-cols-7 确保一周 7 天整齐排列，绝对不横冲直撞 */}
+                    <div className="grid grid-cols-7 gap-2">
+                        {/* 这里的 Array(28) 代表展示过去 4 周的数据，你可以根据实际需求调整 */}
+                        {Array.from({ length: 28 }).map((_, i) => (
+                            <div
+                                key={i}
+                                className="aspect-square rounded-md bg-slate-50 border border-slate-100 flex flex-col items-center justify-center group hover:border-teal-300 transition-all cursor-help"
+                                title={`偏移天数: -${27 - i}`}
+                            >
+                                {/* 这里面不要再放“频次/日”的字了！这里只需放一个小方块，或者一个代表状态的小点 */}
+                                <div className="w-2 h-2 rounded-full bg-slate-200 group-hover:bg-teal-400 transition-all" />
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="mt-6 flex justify-between items-center text-[9px] font-black text-slate-300 uppercase tracking-tighter">
+                        <span>28 Days Ago</span>
+                        <span>Today</span>
                     </div>
                 </div>
             </div>
@@ -493,17 +506,31 @@ export default function MedicineGuide() {
                                         </div>
                                     </div>
 
-                                    {/* 🚀 新增：操作面板（包含补给和防误触销毁） */}
-                                    <div className="flex flex-col gap-3">
-                                        <button onClick={() => openRefillModal(med)} className="text-slate-300 hover:text-teal-500 transition-all bg-slate-50 p-2 rounded-lg" title="呼叫补给">
+                                    {/* 🚀 修复后的操作面板：宽度自适应同步 */}
+                                    {/* 🚀 修复后的操作面板：使用固定宽度支架，严防“长面条”变形 */}
+                                    <div className="flex flex-col gap-3 w-24 items-end">
+                                        {/* 1. 补给按钮：现在它是一个稳定的长方形，且跟下方的“确认”一样宽 */}
+                                        <button
+                                            onClick={() => openRefillModal(med)}
+                                            className="text-slate-300 hover:text-teal-500 transition-all bg-slate-50 p-2 rounded-2xl w-full h-11 flex items-center justify-center border border-slate-100/50"
+                                            title="呼叫补给"
+                                        >
                                             <PackagePlus size={18} />
                                         </button>
-                                        {/* 🛡️ 神盾防误触按钮 */}
+
+                                        {/* 2. 🛡️ 神盾防误触按钮 */}
                                         <button
                                             onClick={() => handleDeleteClick(med.id)}
-                                            className={`transition-all p-2 rounded-lg flex items-center justify-center gap-1 ${armedId === med.id ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)] animate-pulse w-24' : 'text-slate-300 hover:text-red-500 bg-slate-50 w-full'}`}
+                                            className={`transition-all h-11 rounded-2xl flex items-center justify-center gap-1 shadow-sm ${armedId === med.id
+                                                    ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.3)] animate-pulse w-full'
+                                                    : 'text-slate-300 hover:text-red-500 bg-slate-50 w-full border border-slate-100/50'
+                                                }`}
                                         >
-                                            {armedId === med.id ? <><Trash2 size={14} /><span className="text-[10px] font-black">确认?</span></> : <Trash2 size={18} />}
+                                            {armedId === med.id ? (
+                                                <><Trash2 size={14} /><span className="text-[10px] font-black">确认?</span></>
+                                            ) : (
+                                                <Trash2 size={18} />
+                                            )}
                                         </button>
                                     </div>
                                 </div>
@@ -639,9 +666,9 @@ export default function MedicineGuide() {
                         </div>
                     </div>
                 )}
-                
+
             </div>
-            
+
         </div>
     );
 }
