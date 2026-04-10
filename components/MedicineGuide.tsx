@@ -55,6 +55,44 @@ const speakTacticalVoice = (text: string) => {
 };
 
 export default function MedicineGuide() {
+    // 🚀 【奥林匹斯】全阵列齐射协议 (西装暴徒版逻辑)
+    const handleSalvoFire = async () => {
+        // 扫描：找出所有处于“Ready”或“超时”状态的药
+        const readyMeds = meds.filter(med => {
+            const isCompleted = med.times_per_day > 0 && med.todayCount >= med.times_per_day;
+            if (isCompleted) return false;
+            const radar = getRadarInfo(med.last_taken_at, med.times_per_day);
+            return radar.status === 'READY' || radar.status === 'OVERDUE' || radar.status === 'SOS';
+        });
+
+        if (readyMeds.length === 0) {
+            showTacticalToast('当前暂无需要服用的药物。');
+            return;
+        }
+
+        // 二次确认
+        const stealthNames = stealth ? '【隐私模式已开启：隐藏药物明细】' : readyMeds.map(m => `• ${m.name}`).join('\n');
+        if (!window.confirm(`确认批量执行服药记录？\n\n即将记录以下 ${readyMeds.length} 项药物：\n\n${stealthNames}\n\n是否继续？`)) {
+            return;
+        }
+
+        showTacticalToast(`正在批量记录 ${readyMeds.length} 项服药状态...`);
+
+        // 数据库同步
+        const nowISO = new Date().toISOString();
+        try {
+            for (const med of readyMeds) {
+                if (med.stock_amount < med.dose_per_time) continue;
+                const remaining = med.stock_amount - med.dose_per_time;
+                await supabase.from('medicines').update({ last_taken_at: nowISO, stock_amount: remaining }).eq('id', med.id);
+                await supabase.from('medicine_logs').insert([{ medicine_id: med.id, medicine_name: med.name, user_id: session.user.id, taken_at: nowISO }]);
+            }
+            fetchData(); // 刷新数据
+            setTimeout(() => showTacticalToast('批量记录完成。'), 2000);
+        } catch (error) {
+            showTacticalToast('批量记录失败，请检查网络。');
+        }
+    };
     const [session, setSession] = useState<any>(null);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -480,6 +518,17 @@ export default function MedicineGuide() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 space-y-6">
                     <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-2 ml-2"><Target size={16} /> 今日执行面板</h2>
+                    {/* 🚀 【奥林匹斯】批量按钮：放在 meds.map 的头顶上 */}
+                    <div className="mb-6 flex justify-end">
+                        <button
+                            onClick={handleSalvoFire}
+                            className="bg-gradient-to-r from-teal-500 to-emerald-400 hover:from-teal-400 hover:to-emerald-300 text-white px-8 py-4 rounded-2xl font-black tracking-widest text-sm shadow-[0_0_20px_rgba(20,184,166,0.2)] transition-all flex items-center gap-2 hover:scale-105 active:scale-95 border border-teal-300/50 group overflow-hidden relative"
+                        >
+                            <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:animate-[shimmer_1.5s_infinite]" />
+                            <CheckCircle2 size={20} className="animate-pulse" />
+                            一键批量记录
+                        </button>
+                    </div>
                     {meds.map((med) => {
                         const todayCount = getTodayProgress(med.id);
                         const isCompleted = todayCount >= med.times_per_day;
