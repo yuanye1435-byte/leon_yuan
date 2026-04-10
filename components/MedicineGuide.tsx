@@ -55,42 +55,55 @@ const speakTacticalVoice = (text: string) => {
 };
 
 export default function MedicineGuide() {
-    // 🚀 【奥林匹斯】全阵列齐射协议 (西装暴徒版逻辑)
+    // 🚀 【赤红警戒】紧急空投协议：瞬间补给 20 发弹药
+    const handleEmergencyAirdrop = async (med: any) => {
+        // 播放空投音效
+        playSciFiSound('login');
+        showTacticalToast(`📡 正在呼叫轨道空投：${stealth ? '机密药资' : med.name} +20...`);
+
+        try {
+            const newAmount = med.stock_amount + 20;
+            await supabase.from('medicines').update({ stock_amount: newAmount }).eq('id', med.id);
+            fetchData();
+            setTimeout(() => showTacticalToast('📦 空投药资已抵达战壕！'), 1500);
+        } catch (error) {
+            showTacticalToast('❌ 空投受阻，请检查通讯链路！');
+        }
+    };
+
+    // 🚀 【奥林匹斯】全阵列齐射协议 (逻辑)
     const handleSalvoFire = async () => {
-        // 扫描：找出所有处于“Ready”或“超时”状态的药
         const readyMeds = meds.filter(med => {
             const isCompleted = med.times_per_day > 0 && med.todayCount >= med.times_per_day;
             if (isCompleted) return false;
-            const radar = getRadarInfo(med.last_taken_at, med.times_per_day);
+            // 注意：确保你的雷达状态计算函数在这里能用，如果名字不对自己改下
+            const radar = typeof getRadarInfo !== 'undefined' ? getRadarInfo(med.last_taken_at, med.times_per_day) : { status: 'READY' };
             return radar.status === 'READY' || radar.status === 'OVERDUE' || radar.status === 'SOS';
         });
 
         if (readyMeds.length === 0) {
-            showTacticalToast('当前暂无需要服用的药物。');
+            alert('当前暂无需要服用的药物。'); // 如果你有特制的 toast，换成你的
             return;
         }
 
-        // 二次确认
         const stealthNames = stealth ? '【隐私模式已开启：隐藏药物明细】' : readyMeds.map(m => `• ${m.name}`).join('\n');
         if (!window.confirm(`确认批量执行服药记录？\n\n即将记录以下 ${readyMeds.length} 项药物：\n\n${stealthNames}\n\n是否继续？`)) {
             return;
         }
 
-        showTacticalToast(`正在批量记录 ${readyMeds.length} 项服药状态...`);
-
-        // 数据库同步
         const nowISO = new Date().toISOString();
         try {
             for (const med of readyMeds) {
                 if (med.stock_amount < med.dose_per_time) continue;
                 const remaining = med.stock_amount - med.dose_per_time;
+                // 执行数据库轰炸
                 await supabase.from('medicines').update({ last_taken_at: nowISO, stock_amount: remaining }).eq('id', med.id);
-                await supabase.from('medicine_logs').insert([{ medicine_id: med.id, medicine_name: med.name, user_id: session.user.id, taken_at: nowISO }]);
+                await supabase.from('medicine_logs').insert([{ medicine_id: med.id, medicine_name: med.name, user_id: session?.user?.id, taken_at: nowISO }]);
             }
-            fetchData(); // 刷新数据
-            setTimeout(() => showTacticalToast('批量记录完成。'), 2000);
+            if (typeof fetchData !== 'undefined') fetchData();
+            setTimeout(() => alert('批量记录完成。'), 2000);
         } catch (error) {
-            showTacticalToast('批量记录失败，请检查网络。');
+            alert('批量记录失败，请检查网络。');
         }
     };
     const [session, setSession] = useState<any>(null);
@@ -529,11 +542,32 @@ export default function MedicineGuide() {
                             一键批量记录
                         </button>
                     </div>
+                    {/* 🚀 【奥林匹斯】一键齐射发射井 */}
+                    <div className="mb-6 flex justify-end">
+                        <button
+                            onClick={handleSalvoFire}
+                            className="bg-gradient-to-r from-teal-500 to-emerald-400 hover:from-teal-400 hover:to-emerald-300 text-white px-8 py-4 rounded-2xl font-black tracking-widest text-sm shadow-[0_0_20px_rgba(20,184,166,0.2)] transition-all flex items-center gap-2 hover:scale-105 active:scale-95 border border-teal-300/50 group overflow-hidden relative"
+                        >
+                            <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:animate-[shimmer_1.5s_infinite]" />
+                            <CheckCircle2 size={20} className="animate-pulse" />
+                            一键批量记录
+                        </button>
+                    </div>
+
                     {meds.map((med) => {
                         const todayCount = getTodayProgress(med.id);
                         const isCompleted = todayCount >= med.times_per_day;
                         const depletion = getDepletionInfo(med.stock_amount, med.times_per_day, med.dose_per_time);
                         const radar = getRadarInfo(med.last_taken_at, med.times_per_day);
+
+                        // 🚨 【赤红警戒】火控雷达核心算法：计算剩余天数
+                        // 每日消耗量 = 每天吃几次 * 每次吃几颗
+                        const dailyBurnRate = med.times_per_day * med.dose_per_time;
+                        // 剩余天数 = 总库存 / 每日消耗量 (如果是按需服用的急救药，就默认算 999 天)
+                        const daysLeft = dailyBurnRate > 0 ? Math.floor(med.stock_amount / dailyBurnRate) : 999;
+                        // 只要撑不到 3 天，立刻拉响警报！
+                        const isLowAmmo = daysLeft <= 3 && med.times_per_day > 0;
+
 
                         return (
                             <div key={med.id} className="p-6 rounded-[2rem] border-2 transition-all bg-white border-slate-100 hover:border-teal-200">
@@ -563,14 +597,22 @@ export default function MedicineGuide() {
 
                                     {/* 🚀 修复后的操作面板：宽度自适应同步 */}
                                     {/* 🚀 修复后的操作面板：使用固定宽度支架，严防“长面条”变形 */}
+                                    {/* 🚀 融合后的智能操作面板 */}
                                     <div className="flex flex-col gap-3 w-24 items-end">
-                                        {/* 1. 补给按钮：现在它是一个稳定的长方形，且跟下方的“确认”一样宽 */}
+
+                                        {/* 📦 智能补给终端：平时低调，告急时变异 */}
+                                        {/* 🚀 智能补给终端：平时是灰色箱子，没弹药时变红闪烁 */}
+                                        {/* 📦 智能补给终端 (融合赤红警戒) */}
                                         <button
                                             onClick={() => openRefillModal(med)}
-                                            className="text-slate-300 hover:text-teal-500 transition-all bg-slate-50 p-2 rounded-2xl w-full h-11 flex items-center justify-center border border-slate-100/50"
-                                            title="呼叫补给"
+                                            className={`transition-all p-2 rounded-2xl w-full h-11 flex items-center justify-center border ${isLowAmmo
+                                                ? 'bg-red-50 text-red-500 border-red-200 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.2)]'
+                                                : 'bg-slate-50 text-slate-300 border-slate-100/50 hover:text-teal-500 hover:bg-white'
+                                                }`}
+                                            title={isLowAmmo ? "警告：库存极低！点击补弹" : "呼叫补给"}
                                         >
                                             <PackagePlus size={18} />
+                                            {isLowAmmo && <span className="text-[10px] font-black ml-1">补弹!</span>}
                                         </button>
 
                                         {/* 2. 🛡️ 神盾防误触按钮 */}
@@ -594,12 +636,31 @@ export default function MedicineGuide() {
                                 <div className="flex items-center justify-between gap-4 border-t border-slate-100/50 pt-4 mt-4">
                                     <div className="flex flex-col gap-2">
                                         {/* 余量警告 */}
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest w-12">余量</span>
-                                            <span className="text-[12px] font-black text-slate-800">{med.stock_amount} <span className="text-[9px] text-slate-400">{med.unit}</span></span>
-                                            <span className={`flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full ${depletion.bg} ${depletion.color} w-fit`}>
-                                                <Radar size={10} /> {depletion.text}
-                                            </span>
+                                        {/* 🚨 底部情报区：显示余量并带预警 */}
+                                        {/* 🚨 底部情报区：一体化战术状态胶囊 */}
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">余量</span>
+
+                                            {/* 🚀 熔接外壳：控制整体圆角和阴影 */}
+                                            <div className={`flex items-stretch rounded-full border transition-all overflow-hidden ${isLowAmmo
+                                                    ? 'border-red-300 shadow-[0_2px_15px_rgba(239,68,68,0.2)]'
+                                                    : 'border-slate-200 bg-white shadow-sm'
+                                                }`}>
+
+                                                {/* 📊 数据核心舱 */}
+                                                <div className={`flex items-baseline gap-1 px-3 py-1.5 ${isLowAmmo ? 'bg-red-50 text-red-600' : 'text-slate-700'}`}>
+                                                    <span className="text-base font-black leading-none">{med.stock_amount}</span>
+                                                    <span className="text-[10px] font-bold opacity-70 leading-none">{med.unit}</span>
+                                                </div>
+
+                                                {/* 🚨 警报扩展舱 (仅在低弹药时无缝伸出) */}
+                                                {isLowAmmo && (
+                                                    <div className="bg-red-500 text-white px-3 flex items-center justify-center text-[10px] font-black tracking-widest animate-pulse">
+                                                        ⚠️ 仅剩 {daysLeft} 天
+                                                    </div>
+                                                )}
+
+                                            </div>
                                         </div>
                                         {/* 冷却雷达 */}
                                         {!isCompleted && (
