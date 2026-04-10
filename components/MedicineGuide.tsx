@@ -106,6 +106,7 @@ export default function MedicineGuide() {
             alert('批量记录失败，请检查网络。');
         }
     };
+
     const [session, setSession] = useState<any>(null);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -119,6 +120,41 @@ export default function MedicineGuide() {
     const [unit, setUnit] = useState('粒');
     const [meds, setMeds] = useState<any[]>([]);
     // --- 这里的代码粘在 const [meds...] 下面 ---
+    // 🧠 【DEFCON 战情中枢】全盘火力统筹算法
+    // 🧠 【DEFCON 战情中枢】全盘火力统筹算法 (修复版)
+    const tacticalStats = React.useMemo(() => {
+        // 1. 必须先声明这些变量，否则下面全是“黑户”
+        let totalTargets = 0;
+        let destroyedTargets = 0;
+        let readyCount = 0;
+
+        // 2. 只有当 meds 存在时才开始扫描
+        if (meds && meds.length > 0) {
+            meds.forEach(med => {
+                if (med.times_per_day > 0) {
+                    totalTargets += med.times_per_day;
+                    destroyedTargets += (med.todayCount || 0);
+
+                    // 计算还没吃完的目标
+                    const isCompleted = (med.todayCount || 0) >= med.times_per_day;
+                    if (!isCompleted) readyCount++;
+                }
+            });
+        }
+        // 3. 计算覆盖率
+        const hitRate = totalTargets > 0 ? Math.round((destroyedTargets / totalTargets) * 100) : 100;
+
+        // 4. 战备等级判定逻辑
+        let defcon = { level: 5, color: 'text-emerald-400', bg: 'bg-emerald-500', status: '全域安全', glow: 'shadow-[0_0_20px_rgba(52,211,153,0.3)]' };
+
+        if (readyCount > 3) {
+            defcon = { level: 1, color: 'text-red-500', bg: 'bg-red-600', status: '阵地失守', glow: 'shadow-[0_0_30px_rgba(239,68,68,0.5)] animate-pulse' };
+        } else if (readyCount > 0) {
+            defcon = { level: 3, color: 'text-amber-400', bg: 'bg-amber-500', status: '交火冲突', glow: 'shadow-[0_0_20px_rgba(251,191,36,0.3)]' };
+        }
+
+        return { totalTargets, destroyedTargets, hitRate, defcon };
+    }, [meds]); // 只要 meds 变了，情报中心就重算
     // 1. 之前加的：补给弹窗开关（控制那个📦图标的弹窗）
     const [isRefillOpen, setIsRefillOpen] = useState(false);
     const [selectedMed, setSelectedMed] = useState<any>(null);
@@ -532,27 +568,72 @@ export default function MedicineGuide() {
                 <div className="lg:col-span-2 space-y-6">
                     <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-2 ml-2"><Target size={16} /> 今日执行面板</h2>
                     {/* 🚀 【奥林匹斯】批量按钮：放在 meds.map 的头顶上 */}
-                    <div className="mb-6 flex justify-end">
-                        <button
-                            onClick={handleSalvoFire}
-                            className="bg-gradient-to-r from-teal-500 to-emerald-400 hover:from-teal-400 hover:to-emerald-300 text-white px-8 py-4 rounded-2xl font-black tracking-widest text-sm shadow-[0_0_20px_rgba(20,184,166,0.2)] transition-all flex items-center gap-2 hover:scale-105 active:scale-95 border border-teal-300/50 group overflow-hidden relative"
-                        >
-                            <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:animate-[shimmer_1.5s_infinite]" />
-                            <CheckCircle2 size={20} className="animate-pulse" />
-                            一键批量记录
-                        </button>
+                    {/* 🚀 【DEFCON 全息战情中枢】(防挤压宽体装甲版) */}
+                    <div className={`mb-8 rounded-[2.5rem] p-6 relative overflow-hidden transition-all duration-700 bg-slate-900 ${tacticalStats.defcon.glow}`}>
+
+                        {/* 赛博底纹 */}
+                        <div className="absolute inset-0 opacity-10 bg-[linear-gradient(transparent_50%,rgba(0,0,0,1)_50%)] bg-[length:100%_4px] pointer-events-none" />
+                        <div className="absolute inset-0 opacity-5 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] pointer-events-none" />
+
+                        {/* 核心修复：采用 xl:flex-row 配合正确的 shrink/flex-1 关系 */}
+                        <div className="relative z-10 flex flex-col xl:flex-row justify-between items-center gap-6">
+
+                            {/* 🎯 左侧：DEFCON 战备等级 */}
+                            <div className="flex items-center gap-5 shrink-0 w-full xl:w-auto">
+                                <div className={`w-16 h-16 rounded-2xl border-2 border-slate-700 flex flex-col items-center justify-center bg-slate-800/50 backdrop-blur-sm ${tacticalStats.defcon.color}`}>
+                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">Defcon</span>
+                                    <span className="text-3xl font-black leading-none drop-shadow-lg">{tacticalStats.defcon.level}</span>
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-black text-white tracking-tight uppercase flex items-center gap-3">
+                                        战情总控中枢
+                                        <span className={`text-[10px] px-2.5 py-1 rounded-full ${tacticalStats.defcon.bg} text-white font-black tracking-widest shadow-lg`}>
+                                            {tacticalStats.defcon.status}
+                                        </span>
+                                    </h2>
+                                    <p className="text-slate-500 text-[10px] font-black tracking-[0.3em] uppercase mt-1">
+                                        Global Operations Dashboard
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* 📊 中间：今日战术目标进度 (拔除挤压毒瘤，纯粹弹性) */}
+                            <div className="flex-1 w-full xl:w-auto bg-slate-800/80 rounded-2xl p-5 border border-slate-700/50 backdrop-blur-md shadow-inner flex flex-col justify-center">
+                                <div className="flex justify-between items-end mb-3">
+                                    <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest whitespace-nowrap">
+                                        今日战术目标歼灭率
+                                    </span>
+                                    <span className="text-3xl font-black text-teal-400 leading-none tabular-nums drop-shadow-[0_0_10px_rgba(45,212,191,0.4)]">
+                                        {tacticalStats.hitRate}%
+                                    </span>
+                                </div>
+                                <div className="h-2.5 w-full bg-slate-900 rounded-full overflow-hidden flex gap-1 p-0.5 shadow-inner">
+                                    {Array.from({ length: Math.max(tacticalStats.totalTargets, 1) }).map((_, i) => (
+                                        <div
+                                            key={i}
+                                            className={`h-full flex-1 rounded-full transition-all duration-1000 ease-out ${i < tacticalStats.destroyedTargets
+                                                    ? 'bg-teal-400 shadow-[0_0_12px_rgba(45,212,191,0.6)]'
+                                                    : 'bg-slate-700'
+                                                }`}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* 💥 右侧：融合版【主炮发射钮】 (自带 shrink-0 锁血防挤压) */}
+                            <div className="shrink-0 w-full xl:w-auto">
+                                <button
+                                    onClick={handleSalvoFire}
+                                    className="w-full xl:w-auto bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 border border-teal-500/30 px-8 py-5 rounded-2xl font-black tracking-widest text-sm uppercase transition-all shadow-[0_0_15px_rgba(45,212,191,0.1)] hover:shadow-[0_0_25px_rgba(45,212,191,0.3)] flex items-center justify-center gap-2 group relative overflow-hidden"
+                                >
+                                    <div className="absolute inset-0 bg-white/5 translate-x-[-100%] group-hover:animate-[shimmer_1.5s_infinite]" />
+                                    <CheckCircle2 size={20} className="animate-pulse group-hover:scale-110 transition-transform" />
+                                    一键全阵列齐射
+                                </button>
+                            </div>
+
+                        </div>
                     </div>
-                    {/* 🚀 【奥林匹斯】一键齐射发射井 */}
-                    {/* <div className="mb-6 flex justify-end">
-                        <button
-                            onClick={handleSalvoFire}
-                            className="bg-gradient-to-r from-teal-500 to-emerald-400 hover:from-teal-400 hover:to-emerald-300 text-white px-8 py-4 rounded-2xl font-black tracking-widest text-sm shadow-[0_0_20px_rgba(20,184,166,0.2)] transition-all flex items-center gap-2 hover:scale-105 active:scale-95 border border-teal-300/50 group overflow-hidden relative"
-                        >
-                            <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:animate-[shimmer_1.5s_infinite]" />
-                            <CheckCircle2 size={20} className="animate-pulse" />
-                            一键批量记录
-                        </button>
-                    </div> */}
 
                     {meds.map((med) => {
                         const todayCount = getTodayProgress(med.id);
@@ -711,7 +792,7 @@ export default function MedicineGuide() {
                 </div>
 
                 <div className="space-y-4">
-                    <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-2 ml-2"><Clock size={16} /> 实时流水</h2>
+                    <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-2 ml-2"><Clock size={16} /> 实时用药记录</h2>
                     <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 min-h-[400px]">
                         <div className="space-y-5">
                             {logs.slice(0, 8).map((log) => (
