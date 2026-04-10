@@ -2,6 +2,56 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from './supabaseClient';
 import { Trash2, Activity, CheckCircle2, Clock, Target, ShoppingCart, Flame, BarChart3, HeartPulse, LogOut, KeyRound, User, ShieldCheck, Radar, PackagePlus, Download, Timer, Eye, EyeOff, History } from 'lucide-react';
+// 📦 内置战术微型药典：囊括 90% 日常使用场景
+const MEDICINE_DB = [
+    {
+        category: "🤒 感冒发烧",
+        items: [
+            { name: "布洛芬缓释胶囊", unit: "粒", times: 2, dose: 1 },
+            { name: "对乙酰氨基酚片", unit: "片", times: 3, dose: 1 },
+            { name: "连花清瘟胶囊", unit: "粒", times: 3, dose: 4 },
+            { name: "999感冒灵颗粒", unit: "包", times: 3, dose: 1 },
+            { name: "复方氨酚烷胺片", unit: "片", times: 2, dose: 1 }
+        ]
+    },
+    {
+        category: "💊 消炎抗感染",
+        items: [
+            { name: "阿莫西林胶囊", unit: "粒", times: 3, dose: 2 },
+            { name: "头孢克肟分散片", unit: "片", times: 2, dose: 1 },
+            { name: "罗红霉素胶囊", unit: "粒", times: 2, dose: 1 },
+            { name: "左氧氟沙星片", unit: "片", times: 1, dose: 1 }
+        ]
+    },
+    {
+        category: "🍵 肠胃消化",
+        items: [
+            { name: "健胃消食片", unit: "片", times: 3, dose: 3 },
+            { name: "奥美拉唑肠溶胶囊", unit: "粒", times: 2, dose: 1 },
+            { name: "蒙脱石散", unit: "包", times: 3, dose: 1 },
+            { name: "多潘立酮片(吗丁啉)", unit: "片", times: 3, dose: 1 }
+        ]
+    },
+    {
+        category: "🤧 过敏/外用",
+        items: [
+            { name: "氯雷他定片", unit: "片", times: 1, dose: 1 },
+            { name: "盐酸西缇利嗪片", unit: "片", times: 1, dose: 1 },
+            { name: "红霉素软膏", unit: "支", times: 2, dose: 1 },
+            { name: "创可贴", unit: "片", times: 0, dose: 1 } // times: 0 代表按需使用
+        ]
+    },
+    {
+        category: "🍎 保健/慢病",
+        items: [
+            { name: "复合维生素B片", unit: "片", times: 1, dose: 1 },
+            { name: "碳酸钙D3片", unit: "片", times: 1, dose: 1 },
+            { name: "降压药(自定义)", unit: "片", times: 1, dose: 1 },
+            { name: "降糖药(自定义)", unit: "片", times: 1, dose: 1 }
+        ]
+    }
+];
+
 
 // --- 🚀 全局黑科技插件 (放在组件外面) ---
 const playSciFiSound = (type: 'login' | 'success' | 'warning') => {
@@ -55,6 +105,7 @@ const speakTacticalVoice = (text: string) => {
 export default function MedicineGuide() {
     // 1. 🧠 【指挥中心】状态记忆区
     const [session, setSession] = useState<any>(null);
+
     const [meds, setMeds] = useState<any[]>([]);
     const [logs, setLogs] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
@@ -63,8 +114,14 @@ export default function MedicineGuide() {
     const [password, setPassword] = useState('');
     const [isSignUp, setIsSignUp] = useState(false);
 
+
     // 药名表单状态
     const [medName, setMedName] = useState('');
+    // 💡 神经索接口：对接 Supabase 中央药典
+    const [globalMeds, setGlobalMeds] = useState<any[]>([]); // 存整个药典
+    const [searchQuery, setSearchQuery] = useState('');      // 搜索框的字
+    const [showDropdown, setShowDropdown] = useState(false); // 下拉菜单开关
+    const [activeCategory, setActiveCategory] = useState(MEDICINE_DB[0].category);
     const [stockAmount, setStockAmount] = useState('20');
     const [timesPerDay, setTimesPerDay] = useState('3');
     const [dosePerTime, setDosePerTime] = useState('1');
@@ -132,8 +189,15 @@ export default function MedicineGuide() {
         };
     }, []);
 
-    useEffect(() => { if (session) fetchData(); }, [session]);
-
+    useEffect(() => {
+        if (session) {
+            fetchData();
+            // 🚀 启动时，黑入中央数据库把药典拉下来！
+            supabase.from('global_pharmacy').select('*').then(({ data }) => {
+                if (data) setGlobalMeds(data);
+            });
+        }
+    }, [session]);
     // 4. 🛠️ 【战术动作】Handlers
     const fetchData = async () => {
         const { data: m } = await supabase.from('medicines').select('*').order('expired_at', { ascending: true });
@@ -357,16 +421,94 @@ export default function MedicineGuide() {
                 </div>
             </div>
 
-            {/* 新增补给 */}
-            <div className="bg-white p-6 rounded-[2rem] shadow-sm mb-10 border border-slate-100">
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
-                    <input value={medName} onChange={(e) => setMedName(e.target.value)} placeholder="药品名" className="col-span-2 lg:col-span-1 p-4 rounded-xl bg-slate-50 border-none outline-none font-bold" />
-                    <div className="flex bg-slate-50 rounded-xl p-2 items-center"><span className="text-[9px] font-black px-2 text-slate-400">总量</span><input type="number" value={stockAmount} onChange={(e) => setStockAmount(e.target.value)} className="w-full bg-transparent border-none outline-none font-bold" /></div>
-                    <div className="flex bg-slate-50 rounded-xl p-2 items-center"><span className="text-[9px] font-black px-2 text-slate-400">剂量</span><input type="number" value={dosePerTime} onChange={(e) => setDosePerTime(e.target.value)} className="w-full bg-transparent border-none outline-none font-bold" /></div>
-                    <div className="flex bg-slate-50 rounded-xl p-2 items-center"><span className="text-[9px] font-black px-2 text-slate-400">单位</span><input value={unit} onChange={(e) => setUnit(e.target.value)} className="w-full bg-transparent border-none outline-none font-bold text-teal-600" /></div>
-                    <div className="flex bg-slate-50 rounded-xl p-2 items-center"><span className="text-[9px] font-black px-2 text-slate-400">频次/日</span><input type="number" value={timesPerDay} onChange={(e) => setTimesPerDay(e.target.value)} className="w-full bg-transparent border-none outline-none font-bold" /></div>
+            {/* ==================== 🚀 智能补给部署舱 (直连 Supabase) ==================== */}
+            <div className="bg-white p-6 rounded-[2rem] shadow-sm mb-10 border border-slate-100 flex flex-col gap-6 relative z-50">
+                <div className="flex items-center gap-2 mb-2">
+                    <PackagePlus size={16} className="text-teal-500" />
+                    <span className="text-xs font-black text-slate-400 uppercase tracking-widest">中央药典检索终端</span>
                 </div>
-                <button onClick={handleAddMed} className="w-full bg-slate-900 hover:bg-teal-500 text-white font-black py-4 rounded-xl transition-all">部署新补给 ➔</button>
+
+                {/* 1. 🌐 智能检索火控雷达 */}
+                <div className="relative">
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => {
+                            setSearchQuery(e.target.value);
+                            setMedName(e.target.value); // 允许手打没在库里的新药
+                            setShowDropdown(true);
+                        }}
+                        onFocus={() => setShowDropdown(true)}
+                        placeholder="输入药品名称、拼音或分类检索中央数据库..."
+                        className="w-full p-4 rounded-xl bg-slate-50 border-2 border-transparent focus:border-teal-400 outline-none font-bold text-slate-800 shadow-inner transition-all"
+                    />
+
+                    {/* ⚡ 全息下拉联想面板 */}
+                    {showDropdown && searchQuery.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 max-h-64 overflow-y-auto custom-scrollbar overflow-hidden z-[100]">
+                            {globalMeds.filter(med => med.med_name.includes(searchQuery) || med.category_sub.includes(searchQuery)).length > 0 ? (
+                                globalMeds.filter(med => med.med_name.includes(searchQuery) || med.category_sub.includes(searchQuery)).slice(0, 10).map(med => (
+                                    <div
+                                        key={med.id}
+                                        onClick={() => {
+                                            // 🎯 一键锁定！参数自动填装！
+                                            setSearchQuery(med.med_name);
+                                            setMedName(med.med_name);
+                                            setUnit(med.default_unit);
+                                            setDosePerTime(med.default_dose.toString());
+                                            setTimesPerDay(med.default_times.toString());
+                                            setShowDropdown(false);
+                                            playSciFiSound('success');
+                                        }}
+                                        className="p-3 border-b border-slate-50 hover:bg-teal-50 cursor-pointer transition-all flex items-center justify-between group"
+                                    >
+                                        <div className="flex flex-col">
+                                            <span className="font-black text-slate-700 group-hover:text-teal-700">{med.med_name}</span>
+                                            <span className="text-[10px] text-slate-400 uppercase tracking-widest">{med.category_sub}</span>
+                                        </div>
+                                        <div className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md group-hover:bg-teal-100 group-hover:text-teal-600">
+                                            单次 {med.default_dose}{med.default_unit} x {med.default_times}次/日
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="p-4 text-center text-xs font-bold text-slate-400">
+                                    ⚠️ 未在中央药典找到匹配项，可直接手动完成入库。
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                {/* 2. 🎛️ 精准参数核准 (自动带出，也可强行手改) */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 relative z-40">
+                    <div className="flex bg-slate-50 rounded-xl p-2 items-center focus-within:ring-2 focus-within:ring-teal-400 transition-all">
+                        <span className="text-[9px] font-black px-2 text-slate-400 whitespace-nowrap">单次剂量</span>
+                        <input type="number" value={dosePerTime} onChange={(e) => setDosePerTime(e.target.value)} className="w-full bg-transparent border-none outline-none font-bold text-slate-800 text-center" />
+                    </div>
+                    <div className="flex bg-slate-50 rounded-xl p-2 items-center focus-within:ring-2 focus-within:ring-teal-400 transition-all">
+                        <span className="text-[9px] font-black px-2 text-slate-400 whitespace-nowrap">计量单位</span>
+                        <input value={unit} onChange={(e) => setUnit(e.target.value)} className="w-full bg-transparent border-none outline-none font-bold text-teal-600 text-center" />
+                    </div>
+                    <div className="flex bg-slate-50 rounded-xl p-2 items-center focus-within:ring-2 focus-within:ring-teal-400 transition-all">
+                        <span className="text-[9px] font-black px-2 text-slate-400 whitespace-nowrap">每日频次</span>
+                        <input type="number" value={timesPerDay} onChange={(e) => setTimesPerDay(e.target.value)} className="w-full bg-transparent border-none outline-none font-bold text-slate-800 text-center" />
+                    </div>
+                    <div className="flex bg-slate-50 rounded-xl p-2 items-center focus-within:ring-2 focus-within:ring-teal-400 shadow-sm border-2 border-teal-100 transition-all">
+                        <span className="text-[9px] font-black px-2 text-teal-600 whitespace-nowrap">入库总余量</span>
+                        <input type="number" value={stockAmount} onChange={(e) => setStockAmount(e.target.value)} className="w-full bg-transparent border-none outline-none font-black text-teal-600 text-center text-lg" />
+                    </div>
+                </div>
+
+                <button
+                    onClick={() => {
+                        handleAddMed();
+                        setSearchQuery(''); // 部署成功后，自动清空雷达扫描框
+                    }}
+                    className="w-full bg-slate-900 hover:bg-teal-500 text-white font-black py-4 rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
+                >
+                    部署入库 ➔
+                </button>
             </div>
 
             {/* 主执行面板 */}
