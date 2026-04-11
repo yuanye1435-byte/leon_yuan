@@ -1,5 +1,6 @@
 // MedicineGuide.tsx 顶部
 "use client";
+// npm run dev
 import { useRouter } from 'next/navigation';
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from './supabaseClient';
@@ -37,6 +38,7 @@ export default function MedicineGuide() {
     const [timesPerDay, setTimesPerDay] = useState('3');
     const [dosePerTime, setDosePerTime] = useState('1');
     const [unit, setUnit] = useState('粒');
+    const [showUnitDrop, setShowUnitDrop] = useState(false); // 🚀 新增：全息单位矩阵开关    
 
     // 战术功能状态
     const [selectedIds, setSelectedIds] = useState<any[]>([]);
@@ -109,11 +111,26 @@ export default function MedicineGuide() {
             });
         }
     }, [session]);
-    // 4. 🛠️ 【战术动作】Handlers
     const fetchData = async () => {
-        const { data: m } = await supabase.from('medicines').select('*').order('expired_at', { ascending: true });
-        const { data: l } = await supabase.from('medicine_logs').select('*').order('taken_at', { ascending: false }).limit(100);
-        setMeds(m || []); setLogs(l || []);
+        // 🛑 绝对防御：如果没有获取到当前特工的身份坐标，直接切断检索！
+        if (!session?.user?.id) return;
+
+        // 🎯 精准定向扫描：只拉取 user_id 等于当前登录账号的数据
+        const { data: m } = await supabase
+            .from('medicines')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .order('expired_at', { ascending: true });
+
+        const { data: l } = await supabase
+            .from('medicine_logs')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .order('taken_at', { ascending: false })
+            .limit(100);
+
+        setMeds(m || []);
+        setLogs(l || []);
     };
 
     const unlockAudio = () => {
@@ -439,23 +456,69 @@ export default function MedicineGuide() {
                     )}
                 </div>
 
-                {/* 2. 🎛️ 精准参数核准 (自动带出，也可强行手改) */}
+                {/* 2. 🎛️ 精准参数核准 (自动带出，也可强行手改) + 全息单位矩阵 + 防弹数值装甲 */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 relative z-40">
+
+                    {/* ① 单次剂量 (拦截负数与零) */}
                     <div className="flex bg-slate-50 rounded-xl p-2 items-center focus-within:ring-2 focus-within:ring-teal-400 transition-all">
                         <span className="text-[9px] font-black px-2 text-slate-400 whitespace-nowrap">单次剂量</span>
-                        <input type="number" value={dosePerTime} onChange={(e) => setDosePerTime(e.target.value)} className="w-full bg-transparent border-none outline-none font-bold text-slate-800 text-center" />
+                        <input
+                            type="number" min="0.1" step="any"
+                            value={dosePerTime}
+                            onChange={(e) => { if (Number(e.target.value) >= 0) setDosePerTime(e.target.value); }}
+                            onBlur={() => { if (Number(dosePerTime) <= 0) setDosePerTime('1'); }}
+                            className="w-full bg-transparent border-none outline-none font-bold text-slate-800 text-center"
+                        />
                     </div>
-                    <div className="flex bg-slate-50 rounded-xl p-2 items-center focus-within:ring-2 focus-within:ring-teal-400 transition-all">
+
+                    {/* ② 计量单位 (Combobox 全息矩阵) */}
+                    <div className="flex bg-slate-50 rounded-xl p-2 items-center focus-within:ring-2 focus-within:ring-teal-400 transition-all relative">
                         <span className="text-[9px] font-black px-2 text-slate-400 whitespace-nowrap">计量单位</span>
-                        <input value={unit} onChange={(e) => setUnit(e.target.value)} className="w-full bg-transparent border-none outline-none font-bold text-teal-600 text-center" />
+                        <input
+                            value={unit}
+                            onChange={(e) => setUnit(e.target.value)}
+                            onFocus={() => setShowUnitDrop(true)}
+                            onBlur={() => setTimeout(() => setShowUnitDrop(false), 200)} // 延迟200ms关闭，防止点击矩阵时失焦
+                            className="w-full bg-transparent border-none outline-none font-bold text-teal-600 text-center relative z-10"
+                        />
+                        {/* ⚡ 展开的九宫格快选矩阵 */}
+                        {showUnitDrop && (
+                            <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-100 shadow-2xl rounded-xl p-2 z-[100] grid grid-cols-4 gap-1">
+                                {['粒', '片', '包', '支', 'ml', '滴', '贴', '喷','针','袋','盒','盖'].map(u => (
+                                    <button
+                                        key={u}
+                                        onClick={() => { setUnit(u); setShowUnitDrop(false); }}
+                                        className="text-[10px] font-black text-slate-500 bg-slate-50 hover:bg-teal-500 hover:text-white rounded-md py-2 transition-all shadow-sm active:scale-95"
+                                    >
+                                        {u}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
+
+                    {/* ③ 每日频次 (拦截负数、小数与零) */}
                     <div className="flex bg-slate-50 rounded-xl p-2 items-center focus-within:ring-2 focus-within:ring-teal-400 transition-all">
                         <span className="text-[9px] font-black px-2 text-slate-400 whitespace-nowrap">每日频次</span>
-                        <input type="number" value={timesPerDay} onChange={(e) => setTimesPerDay(e.target.value)} className="w-full bg-transparent border-none outline-none font-bold text-slate-800 text-center" />
+                        <input
+                            type="number" min="1" step="1"
+                            value={timesPerDay}
+                            onChange={(e) => setTimesPerDay(e.target.value.replace(/[^0-9]/g, ''))} // 正则物理过滤一切非数字
+                            onBlur={() => { if (Number(timesPerDay) <= 0) setTimesPerDay('3'); }}
+                            className="w-full bg-transparent border-none outline-none font-bold text-slate-800 text-center"
+                        />
                     </div>
+
+                    {/* ④ 入库总余量 (拦截负数与零) */}
                     <div className="flex bg-slate-50 rounded-xl p-2 items-center focus-within:ring-2 focus-within:ring-teal-400 shadow-sm border-2 border-teal-100 transition-all">
                         <span className="text-[9px] font-black px-2 text-teal-600 whitespace-nowrap">入库总余量</span>
-                        <input type="number" value={stockAmount} onChange={(e) => setStockAmount(e.target.value)} className="w-full bg-transparent border-none outline-none font-black text-teal-600 text-center text-lg" />
+                        <input
+                            type="number" min="1"
+                            value={stockAmount}
+                            onChange={(e) => { if (Number(e.target.value) >= 0) setStockAmount(e.target.value); }}
+                            onBlur={() => { if (Number(stockAmount) <= 0) setStockAmount('20'); }}
+                            className="w-full bg-transparent border-none outline-none font-black text-teal-600 text-center text-lg"
+                        />
                     </div>
                 </div>
 
@@ -561,19 +624,19 @@ export default function MedicineGuide() {
                                         </button>
                                     </div>
                                 </div>
-                                <div className="flex items-center justify-between border-t pt-4">
-                                    <div className="flex gap-6">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase">余量</span>
-                                            <div className={`px-3 py-1 rounded-full border text-xs font-black ${isLowAmmo ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-700 border-slate-100'}`}>{med.stock_amount} {med.unit}</div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase">雷达</span>
-                                            <div className={`px-3 py-1 rounded-full border text-[10px] font-black flex items-center gap-1.5 ${radar.bg} ${radar.color}`}>
-                                                <Timer size={12} /> {radar.text}
-                                            </div>
+                                {/* 增加 flex-wrap 防止挤压，增加 gap-4 拉开按钮间距 */}
+                                <div className="flex flex-wrap items-center justify-between gap-4 border-t pt-4"><div className="flex gap-6">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase">余量</span>
+                                        <div className={`px-3 py-1 rounded-full border text-xs font-black ${isLowAmmo ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-700 border-slate-100'}`}>{med.stock_amount} {med.unit}</div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase">雷达</span>
+                                        <div className={`px-3 py-1 rounded-full border text-[10px] font-black flex items-center gap-1.5 ${radar.bg} ${radar.color}`}>
+                                            <Timer size={12} /> {radar.text}
                                         </div>
                                     </div>
+                                </div>
                                     {!isCompleted ? (
                                         <button onClick={() => handleTakeMedClick(med)} className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase transition-all shadow-md ${radar.allow ? 'bg-slate-900 text-white hover:bg-teal-500' : 'bg-orange-500 text-white hover:bg-orange-600'}`}>
                                             确认执行 {med.dose_per_time}{med.unit}
