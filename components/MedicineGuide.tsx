@@ -32,10 +32,13 @@ interface DraggableMedCardProps {
 
 // 🚀 2. 带有类型约束的药品卡片组件 (FC 表示 Function Component)
 // 🚀 2. 带有类型约束的药品卡片组件 (滑动抽屉终极版)
+// 🚀 带有类型约束的药品卡片组件 (磁吸阈值防卡死版)
 const DraggableMedCard: React.FC<DraggableMedCardProps> = ({
     med, stealth, isSelected, todayCount, isCompleted, radar, isLowAmmo, toggleSelection, openRefillModal, handleDeleteClick, armedId, handleTakeMedClick
 }) => {
     const dragControls = useDragControls();
+    // 🚨 核心新增：独立的抽屉状态记忆开关
+    const [isDrawerOpen, setIsDrawerOpen] = React.useState(false);
 
     return (
         <Reorder.Item
@@ -44,45 +47,57 @@ const DraggableMedCard: React.FC<DraggableMedCardProps> = ({
             dragListener={false}
             dragControls={dragControls}
             whileDrag={{ scale: 1.02, zIndex: 50 }}
-            // 剥离外层样式，让它纯粹作为重力场轨道的包裹层
             className="mb-4 relative"
         >
-            {/* 📌 战术图钉标识 (保持绝对悬浮，不随抽屉滑动) */}
+            {/* 📌 战术图钉标识 */}
             {med.is_pinned && (
                 <div className="absolute -top-3 -right-3 w-8 h-8 bg-teal-500 rounded-full flex items-center justify-center shadow-lg border-2 border-white z-30 text-white transform rotate-12">
                     <Pin size={16} className="fill-current" />
                 </div>
             )}
 
-            {/* 🛡️ 抽屉底盘：包裹底层操作区和顶层滑轨卡片 */}
+            {/* 🛡️ 抽屉底盘 */}
             <div className={`relative w-full rounded-[2rem] overflow-hidden transition-colors duration-500 ${isSelected ? 'bg-teal-500 shadow-lg shadow-teal-500/20' : 'bg-slate-200 shadow-inner'}`}>
 
-                {/* ⚙️ 底层抽屉：动作面板 (潜伏在右侧深处) */}
+                {/* ⚙️ 底层抽屉：动作面板 */}
                 <div className="absolute inset-y-0 right-0 w-[100px] flex items-center justify-center">
                     <button
-                        onClick={() => toggleSelection(med.id)}
+                        onClick={() => {
+                            toggleSelection(med.id);
+                            setIsDrawerOpen(false); // 🚨 体验优化：点完锁定后，抽屉瞬间自动收回！
+                        }}
                         className="w-full h-full flex flex-col items-center justify-center text-white hover:bg-black/10 transition-all active:scale-95"
                     >
                         <CheckCircle2 size={32} className={isSelected ? 'text-white drop-shadow-md' : 'text-slate-400'} />
-                        <span className="text-[11px] font-black mt-2 tracking-widest">{isSelected ? '已锁定' : '选中目标'}</span>
+                        <span className="text-[11px] font-black mt-2 tracking-widest">{isSelected ? '已取消' : '点击锁定'}</span>
                     </button>
                 </div>
 
-                {/* 🚀 顶层装甲：主界面卡片 (搭载横向物理滑轨) */}
+                {/* 🚀 顶层装甲：主界面卡片 (搭载边缘吸附与滑动阈值) */}
                 <motion.div
                     drag="x"
-                    dragConstraints={{ left: -100, right: 0 }} // 🧱 物理限制：向左最多滑出 100px 露出抽屉
-                    dragElastic={0.1} // 极为干脆的阻尼手感
+                    dragConstraints={{ left: -100, right: 0 }}
+                    dragElastic={0.1}
+                    animate={{ x: isDrawerOpen ? -100 : 0 }} // 🚨 强制状态接管：绝不允许停在中间！
+                    onDragEnd={(e, { offset, velocity }) => {
+                        // 🚨 物理阈值引擎：判定用户的滑动意图
+                        if (isDrawerOpen) {
+                            // 如果已经是打开状态，往右滑(关)的距离超过 40px，或者往右甩的速度够快，就关上
+                            if (offset.x > 40 || velocity.x > 400) setIsDrawerOpen(false);
+                        } else {
+                            // 如果是关闭状态，往左滑(开)的距离超过 40px，或者往左甩的速度够快，就弹开
+                            if (offset.x < -40 || velocity.x < -400) setIsDrawerOpen(true);
+                        }
+                    }}
                     className={`p-6 rounded-[2rem] border-2 bg-white relative z-10 w-full transition-colors ${isSelected ? 'border-teal-400' : med.is_pinned ? 'border-teal-300' : 'border-slate-100 hover:border-teal-200'}`}
                 >
                     <div className="flex justify-between items-start mb-6">
                         <div className="flex items-center gap-2">
-                            {/* 🖐️ 三条杠无边界拖拽手柄 (稳居左侧盲区，搭载防误触与防选中装甲) */}
-                            {/* 🖐️ 三条杠无边界拖拽手柄 (搭载信号隔离装甲) */}
+                            {/* 🖐️ 三条杠无边界拖拽手柄 */}
                             <div
                                 className="p-2 -ml-4 cursor-grab active:cursor-grabbing text-slate-300 hover:text-teal-500 transition-all touch-none select-none"
                                 onPointerDown={(e) => {
-                                    e.stopPropagation(); // 🛑 核心修复：阻止信号外泄给横向抽屉，专心处理上下拖拽
+                                    e.stopPropagation();
                                     e.preventDefault();
                                     dragControls.start(e);
                                 }}
@@ -92,18 +107,14 @@ const DraggableMedCard: React.FC<DraggableMedCardProps> = ({
 
                             <div>
                                 <div className="flex items-center gap-2">
-                                    {/* 药名：改用 transition-colors 减轻渲染压力 */}
                                     <h3 className={`text-2xl font-black transition-colors duration-300 ${isCompleted && !med.is_pinned ? 'text-slate-300' : 'text-slate-800'} ${stealth ? 'blur-md select-none' : ''}`}>
                                         {stealth ? '••••••••' : med.name}
                                     </h3>
 
-                                    {/* 💡 电竞级状态指示灯：固定 20px 物理占位，杜绝重绘风暴 */}
+                                    {/* 💡 电竞级状态指示灯：带有 GPU 物理占位，杜绝排版错位 */}
                                     <div className="relative w-5 h-5 flex items-center justify-center shrink-0">
-                                        {/* 未选中：脉冲小圆点 (平滑缩小隐形) */}
                                         <div className={`absolute w-1.5 h-1.5 rounded-full bg-slate-300 transition-all duration-300 ease-out will-change-transform ${isSelected ? 'opacity-0 scale-50' : 'opacity-100 scale-100 animate-pulse'
                                             }`}></div>
-
-                                        {/* 选中：绿勾徽章 (带有弹簧质感的放大浮现) */}
                                         <CheckCircle2 size={18} className={`absolute text-teal-500 shadow-sm rounded-full transition-all duration-300 ease-out will-change-transform ${isSelected ? 'opacity-100 scale-100' : 'opacity-0 scale-50'
                                             }`} />
                                     </div>
@@ -120,6 +131,8 @@ const DraggableMedCard: React.FC<DraggableMedCardProps> = ({
                                 )}
                             </div>
                         </div>
+
+                        {/* 右侧操作区 (补药 / 删除) */}
                         <div className="flex flex-col gap-2 w-24 items-end">
                             <button onClick={() => openRefillModal(med)} className={`p-2 rounded-2xl border flex items-center justify-center gap-2 ${isLowAmmo ? 'bg-red-50 text-red-500 border-red-200 animate-pulse' : 'bg-slate-50 text-slate-300 border-slate-100'}`}>
                                 <PackagePlus size={18} /> {isLowAmmo && <span className="text-[9px] font-black">补药</span>}
@@ -129,6 +142,8 @@ const DraggableMedCard: React.FC<DraggableMedCardProps> = ({
                             </button>
                         </div>
                     </div>
+
+                    {/* 底部雷达与确认用药区 */}
                     <div className="flex flex-wrap items-center justify-between gap-4 border-t pt-4">
                         <div className="flex gap-6">
                             <div className="flex items-center gap-2">
@@ -142,11 +157,21 @@ const DraggableMedCard: React.FC<DraggableMedCardProps> = ({
                                 </div>
                             </div>
                         </div>
+                        {/* 🚨 底部执行区：急救特权 vs 常规打卡 */}
                         {!isCompleted ? (
-                            <button onClick={() => handleTakeMedClick(med)} className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase transition-all shadow-md ${radar.allow ? 'bg-slate-900 text-white hover:bg-teal-500' : 'bg-orange-500 text-white hover:bg-orange-600'}`}>
-                                确认用药 {med.dose_per_time}{med.unit}
-                            </button>
+                            med.times_per_day === 0 ? (
+                                // 🩸 频次为0：触发急救专用 UI
+                                <button onClick={() => handleTakeMedClick(med)} className={`px-4 py-3 rounded-2xl font-black text-[10px] uppercase transition-all shadow-md flex items-center gap-1 ${todayCount > 0 ? 'bg-red-900 text-red-200 border border-red-800' : 'bg-red-500 text-white hover:bg-red-600 shadow-[0_0_15px_rgba(239,68,68,0.4)] animate-pulse'}`}>
+                                    {todayCount > 0 ? `🚨 已执行急救 (${todayCount}次) - 再次记录` : `🚨 紧急服用 ${med.dose_per_time}${med.unit}`}
+                                </button>
+                            ) : (
+                                // 🟢 频次>0：常规吃药 UI
+                                <button onClick={() => handleTakeMedClick(med)} className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase transition-all shadow-md ${radar.allow ? 'bg-slate-900 text-white hover:bg-teal-500' : 'bg-orange-500 text-white hover:bg-orange-600'}`}>
+                                    确认用药 {med.dose_per_time}{med.unit}
+                                </button>
+                            )
                         ) : (
+                            // 🛡️ 常规药打卡完成 UI
                             <div className="px-6 py-3 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100 font-black text-[10px] flex items-center gap-2">
                                 <ShieldCheck size={14} /> 今日已达标
                             </div>
@@ -160,6 +185,8 @@ const DraggableMedCard: React.FC<DraggableMedCardProps> = ({
 
 // --- 🛠️ 主机甲核心：MedicineGuide ---
 export default function MedicineGuide() {
+    // 🚀 核心新增：急救弹窗控制中心 (放在 MedicineGuide 函数内部顶部)
+    const [sosAlertMed, setSosAlertMed] = useState<any>(null);
     const router = useRouter();
     // 1. 🧠 【指挥中心】状态记忆区
     const [session, setSession] = useState<any>(null);
@@ -450,6 +477,13 @@ export default function MedicineGuide() {
     };
 
     const handleTakeMedClick = (med: any) => {
+
+        // 🚨 S.O.S 急救协议：无视一切冷却和冲突，立刻记录并弹窗！
+        if (med.times_per_day === 0) {
+            executeTakeMed(med, new Date()); // 瞬间扣除库存+写入日志
+            setSosAlertMed(med); // 召唤 120 弹窗
+            return;
+        }
         // 1. 🛑 神盾拦截扫描：调出今天的作战日志
         const todayLogs = logs.filter(log => new Date(log.taken_at).toDateString() === new Date().toDateString());
 
@@ -610,10 +644,11 @@ export default function MedicineGuide() {
             dose_per_time: parseFloat(dosePerTime),
             unit: unit,
             user_id: session.user.id,
-            // 🚀 将预测的形态直接写入数据库
             shape: autoShape,
             color1: autoColor1,
-            color2: autoColor2
+            color2: autoColor2,
+            // 🚨 S.O.S 生命通道特权：只要频次为 0（急救药），入库即自动置顶！
+            is_pinned: parseInt(timesPerDay) === 0
         }]);
 
         if (!error) {
@@ -657,9 +692,9 @@ export default function MedicineGuide() {
         if (times === 0) return { status: 'SOS', text: '急救待命', color: 'text-purple-500', bg: 'bg-purple-50', allow: true };
         if (!last) return { status: 'READY', text: '随时可执行', color: 'text-teal-500', bg: 'bg-teal-50', allow: true };
         const next = new Date(new Date(last).getTime() + (24 / times) * 60 * 60 * 1000);
-        if (nowTime >= next) return { status: 'OVERDUE', text: `已超时 ${Math.floor((nowTime.getTime() - next.getTime()) / 3600000)}h`, color: 'text-red-500', bg: 'bg-red-50', allow: true };
+        if (nowTime >= next) return { status: 'OVERDUE', text: `已超时 ${Math.floor((nowTime.getTime() - next.getTime()) / 3600000)}小时`, color: 'text-red-500', bg: 'bg-red-50', allow: true };
         const diff = next.getTime() - nowTime.getTime();
-        return { status: 'STANDBY', text: `冷却中 ${Math.floor(diff / 3600000)}h ${Math.floor((diff % 3600000) / 60000)}m`, color: 'text-orange-500', bg: 'bg-orange-50', allow: false };
+        return { status: 'STANDBY', text: `距下次用药 ${Math.floor(diff / 3600000)}小时 ${Math.floor((diff % 3600000) / 60000)}分`, color: 'text-orange-500', bg: 'bg-orange-50', allow: false };
     };
 
 
@@ -1156,10 +1191,8 @@ export default function MedicineGuide() {
                                             stealth={stealth}
                                             isSelected={selectedIds.includes(med.id)}
                                             todayCount={getTodayProgress(med.id)}
-                                            isCompleted={getTodayProgress(med.id) >= med.times_per_day}
-                                            radar={getRadarInfo(med.last_taken_at, med.times_per_day)}
-                                            isLowAmmo={(med.times_per_day > 0) && (med.stock_amount / (med.times_per_day * med.dose_per_time) <= 3)}
-                                            toggleSelection={toggleSelection}
+                                            isCompleted={med.times_per_day > 0 && getTodayProgress(med.id) >= med.times_per_day} radar={getRadarInfo(med.last_taken_at, med.times_per_day)}
+                                            isLowAmmo={(med.times_per_day > 0) && (med.stock_amount / (med.times_per_day * med.dose_per_time) <= 3)} toggleSelection={toggleSelection}
                                             openRefillModal={openRefillModal}
                                             handleDeleteClick={handleDeleteClick}
                                             armedId={armedId}
@@ -1177,10 +1210,8 @@ export default function MedicineGuide() {
                                             stealth={stealth}
                                             isSelected={selectedIds.includes(med.id)}
                                             todayCount={getTodayProgress(med.id)}
-                                            isCompleted={getTodayProgress(med.id) >= med.times_per_day}
-                                            radar={getRadarInfo(med.last_taken_at, med.times_per_day)}
-                                            isLowAmmo={(med.times_per_day > 0) && (med.stock_amount / (med.times_per_day * med.dose_per_time) <= 3)}
-                                            toggleSelection={toggleSelection}
+                                            isCompleted={med.times_per_day > 0 && getTodayProgress(med.id) >= med.times_per_day} radar={getRadarInfo(med.last_taken_at, med.times_per_day)}
+                                            isLowAmmo={med.times_per_day > 0 ? (med.stock_amount <= med.times_per_day * med.dose_per_time * 3) : (med.stock_amount <= med.dose_per_time * 2)} toggleSelection={toggleSelection}
                                             openRefillModal={openRefillModal}
                                             handleDeleteClick={handleDeleteClick}
                                             armedId={armedId}
@@ -1410,6 +1441,32 @@ export default function MedicineGuide() {
                                 className="flex-1 py-4 rounded-2xl font-black text-xs text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/30 transition-all"
                             >
                                 确认清除
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ==================== 🚨 S.O.S 生命通道弹窗 ==================== */}
+            {sosAlertMed && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-red-950/90 backdrop-blur-xl transition-opacity">
+                    <div className="bg-slate-900 rounded-[3rem] p-8 w-full max-w-sm shadow-[0_0_80px_rgba(239,68,68,0.5)] border-4 border-red-600 text-center relative overflow-hidden">
+                        {/* 警报灯特效 */}
+                        <div className="absolute top-0 left-0 w-full h-2 bg-red-500 animate-pulse" />
+                        <div className="inline-block p-5 rounded-full bg-red-500/20 text-red-500 mb-6">
+                            <HeartPulse size={48} className="animate-bounce" />
+                        </div>
+                        <h3 className="text-2xl font-black text-white tracking-widest uppercase mb-2">已记录急救操作</h3>
+                        <p className="text-sm font-bold text-red-400 mb-6">目标：{stealth ? '【机密药物】' : sosAlertMed.name}</p>
+                        <p className="text-xs font-bold text-slate-300 leading-relaxed mb-8">
+                            如果服用后症状未缓解，请务必立刻就医！
+                        </p>
+                        <div className="flex flex-col gap-4">
+                            <a href="tel:120" onClick={() => setSosAlertMed(null)} className="w-full py-5 rounded-2xl font-black text-lg text-white bg-red-600 hover:bg-red-500 shadow-lg flex items-center justify-center gap-2">
+                                📞 拨打 120 急救
+                            </a>
+                            <button onClick={() => setSosAlertMed(null)} className="w-full py-4 rounded-2xl font-black text-xs text-slate-400 border-2 border-slate-700">
+                                我已安全 / 仅记录数据
                             </button>
                         </div>
                     </div>
