@@ -4,7 +4,7 @@
 import { useRouter } from 'next/navigation';
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from './supabaseClient';
-import { Reorder, useDragControls } from 'framer-motion';
+import { motion, Reorder, useDragControls } from 'framer-motion';
 // import { Trash2, Activity, CheckCircle2, Clock, Target, ShoppingCart, Flame, BarChart3, HeartPulse, LogOut, KeyRound, User, ShieldCheck, Radar, PackagePlus, Download, Timer, Eye, EyeOff, History, UserX, Pin } from 'lucide-react';
 import { Trash2, Activity, CheckCircle2, Clock, Target, ShoppingCart, Flame, BarChart3, HeartPulse, LogOut, KeyRound, User, ShieldCheck, Radar, PackagePlus, Download, Timer, Eye, EyeOff, History, UserX, Menu, Pin } from 'lucide-react';
 import PinyinMatch from 'pinyin-match'; // 🚀 新增：挂载拼音匹配引擎
@@ -31,19 +31,9 @@ interface DraggableMedCardProps {
 }
 
 // 🚀 2. 带有类型约束的药品卡片组件 (FC 表示 Function Component)
+// 🚀 2. 带有类型约束的药品卡片组件 (滑动抽屉终极版)
 const DraggableMedCard: React.FC<DraggableMedCardProps> = ({
-    med,
-    stealth,
-    isSelected,
-    todayCount,
-    isCompleted,
-    radar,
-    isLowAmmo,
-    toggleSelection,
-    openRefillModal,
-    handleDeleteClick,
-    armedId,
-    handleTakeMedClick
+    med, stealth, isSelected, todayCount, isCompleted, radar, isLowAmmo, toggleSelection, openRefillModal, handleDeleteClick, armedId, handleTakeMedClick
 }) => {
     const dragControls = useDragControls();
 
@@ -53,85 +43,110 @@ const DraggableMedCard: React.FC<DraggableMedCardProps> = ({
             id={med.id}
             dragListener={false}
             dragControls={dragControls}
-            whileDrag={{ scale: 1.02, boxShadow: "0px 20px 30px rgba(0,0,0,0.1)", zIndex: 50 }}
-            className={`p-6 rounded-[2rem] border-2 transition-all bg-white relative mb-4 ${med.is_pinned ? 'border-teal-300 shadow-[0_0_15px_rgba(20,184,166,0.1)]' : 'border-slate-100 hover:border-teal-200'}`}
+            whileDrag={{ scale: 1.02, zIndex: 50 }}
+            // 剥离外层样式，让它纯粹作为重力场轨道的包裹层
+            className="mb-4 relative"
         >
-            {/* 📌 战术图钉标识 */}
+            {/* 📌 战术图钉标识 (保持绝对悬浮，不随抽屉滑动) */}
             {med.is_pinned && (
-                <div className="absolute -top-3 -right-3 w-8 h-8 bg-teal-500 rounded-full flex items-center justify-center shadow-lg border-2 border-white z-10 text-white transform rotate-12">
+                <div className="absolute -top-3 -right-3 w-8 h-8 bg-teal-500 rounded-full flex items-center justify-center shadow-lg border-2 border-white z-30 text-white transform rotate-12">
                     <Pin size={16} className="fill-current" />
                 </div>
             )}
 
-            <div className="flex justify-between items-start mb-6">
-                <div className="flex items-center gap-2">
-                    {/* 🖐️ 三条杠无边界拖拽手柄 (搭载防误触装甲) */}
-                    <div
-                        className="p-2 -ml-4 cursor-grab active:cursor-grabbing text-slate-300 hover:text-teal-500 transition-all touch-none select-none"
-                        onPointerDown={(e) => {
-                            e.preventDefault(); // 🛑 核心拦截：直接切断浏览器的“文字框选”本能
-                            dragControls.start(e); // 然后再把控制权交给物理引擎
-                        }}
-                    >
-                        <Menu size={20} />
-                    </div>
+            {/* 🛡️ 抽屉底盘：包裹底层操作区和顶层滑轨卡片 */}
+            <div className={`relative w-full rounded-[2rem] overflow-hidden transition-colors duration-500 ${isSelected ? 'bg-teal-500 shadow-lg shadow-teal-500/20' : 'bg-slate-200 shadow-inner'}`}>
 
-                    {/* 🎯 兼容态多选框 */}
+                {/* ⚙️ 底层抽屉：动作面板 (潜伏在右侧深处) */}
+                <div className="absolute inset-y-0 right-0 w-[100px] flex items-center justify-center">
                     <button
                         onClick={() => toggleSelection(med.id)}
-                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-teal-500 border-teal-500 shadow-[0_0_12px_rgba(20,184,166,0.5)]' : isCompleted ? 'bg-slate-50 border-slate-200' : 'border-slate-300 hover:border-teal-400'}`}
+                        className="w-full h-full flex flex-col items-center justify-center text-white hover:bg-black/10 transition-all active:scale-95"
                     >
-                        {isSelected && <CheckCircle2 size={16} className="text-white" />}
-                        {!isSelected && isCompleted && <CheckCircle2 size={16} className="text-slate-300" />}
+                        <CheckCircle2 size={32} className={isSelected ? 'text-white drop-shadow-md' : 'text-slate-400'} />
+                        <span className="text-[11px] font-black mt-2 tracking-widest">{isSelected ? '已锁定' : '选中目标'}</span>
                     </button>
+                </div>
 
-                    <div>
-                        <h3 className={`text-2xl font-black transition-all ${isCompleted && !med.is_pinned ? 'text-slate-300' : 'text-slate-800'} ${stealth ? 'blur-md select-none' : ''}`}>
-                            {stealth ? '••••••••' : med.name}
-                        </h3>
-                        {!stealth && med.times_per_day > 0 && (
-                            <div className="mt-2">
-                                <span className="text-[10px] font-black text-slate-400 uppercase">进度 {todayCount}/{med.times_per_day}</span>
-                                <div className="flex gap-1.5 w-40 mt-1">
-                                    {Array.from({ length: med.times_per_day }).map((_, i) => (
-                                        <div key={i} className={`h-1.5 flex-1 rounded-sm ${i < todayCount ? 'bg-teal-500 shadow-[0_0_5px_rgba(20,184,166,0.6)]' : 'bg-slate-100'}`} />
-                                    ))}
+                {/* 🚀 顶层装甲：主界面卡片 (搭载横向物理滑轨) */}
+                <motion.div
+                    drag="x"
+                    dragConstraints={{ left: -100, right: 0 }} // 🧱 物理限制：向左最多滑出 100px 露出抽屉
+                    dragElastic={0.1} // 极为干脆的阻尼手感
+                    className={`p-6 rounded-[2rem] border-2 bg-white relative z-10 w-full transition-colors ${isSelected ? 'border-teal-400' : med.is_pinned ? 'border-teal-300' : 'border-slate-100 hover:border-teal-200'}`}
+                >
+                    <div className="flex justify-between items-start mb-6">
+                        <div className="flex items-center gap-2">
+                            {/* 🖐️ 三条杠无边界拖拽手柄 (稳居左侧盲区，搭载防误触与防选中装甲) */}
+                            {/* 🖐️ 三条杠无边界拖拽手柄 (搭载信号隔离装甲) */}
+                            <div
+                                className="p-2 -ml-4 cursor-grab active:cursor-grabbing text-slate-300 hover:text-teal-500 transition-all touch-none select-none"
+                                onPointerDown={(e) => {
+                                    e.stopPropagation(); // 🛑 核心修复：阻止信号外泄给横向抽屉，专心处理上下拖拽
+                                    e.preventDefault();
+                                    dragControls.start(e);
+                                }}
+                            >
+                                <Menu size={20} />
+                            </div>
+
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <h3 className={`text-2xl font-black transition-all ${isCompleted && !med.is_pinned ? 'text-slate-300' : 'text-slate-800'} ${stealth ? 'blur-md select-none' : ''}`}>
+                                        {stealth ? '••••••••' : med.name}
+                                    </h3>
+                                    {/* 💡 状态指示灯：即使抽屉合上，也能从名字旁边看到卡片的选中状态 */}
+                                    {isSelected ? (
+                                        <CheckCircle2 size={18} className="text-teal-500 shadow-sm rounded-full" />
+                                    ) : (
+                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-200 animate-pulse" title="向左滑动解锁选项"></div>
+                                    )}
                                 </div>
+                                {!stealth && med.times_per_day > 0 && (
+                                    <div className="mt-2">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase">进度 {todayCount}/{med.times_per_day}</span>
+                                        <div className="flex gap-1.5 w-40 mt-1">
+                                            {Array.from({ length: med.times_per_day }).map((_, i) => (
+                                                <div key={i} className={`h-1.5 flex-1 rounded-sm ${i < todayCount ? 'bg-teal-500 shadow-[0_0_5px_rgba(20,184,166,0.6)]' : 'bg-slate-100'}`} />
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        <div className="flex flex-col gap-2 w-24 items-end">
+                            <button onClick={() => openRefillModal(med)} className={`p-2 rounded-2xl border flex items-center justify-center gap-2 ${isLowAmmo ? 'bg-red-50 text-red-500 border-red-200 animate-pulse' : 'bg-slate-50 text-slate-300 border-slate-100'}`}>
+                                <PackagePlus size={18} /> {isLowAmmo && <span className="text-[9px] font-black">补药</span>}
+                            </button>
+                            <button onClick={() => handleDeleteClick(med.id)} className={`p-2 rounded-2xl flex items-center justify-center gap-2 ${armedId === med.id ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-50 text-slate-300 hover:text-red-500 border border-slate-100'}`}>
+                                <Trash2 size={18} /> {armedId === med.id && <span className="text-[9px] font-black">确认?</span>}
+                            </button>
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-4 border-t pt-4">
+                        <div className="flex gap-6">
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-black text-slate-400 uppercase">余量</span>
+                                <div className={`px-3 py-1 rounded-full border text-xs font-black ${isLowAmmo ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-700 border-slate-100'}`}>{med.stock_amount} {med.unit}</div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-black text-slate-400 uppercase">雷达</span>
+                                <div className={`px-3 py-1 rounded-full border text-[10px] font-black flex items-center gap-1.5 ${radar.bg} ${radar.color}`}>
+                                    <Timer size={12} /> {radar.text}
+                                </div>
+                            </div>
+                        </div>
+                        {!isCompleted ? (
+                            <button onClick={() => handleTakeMedClick(med)} className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase transition-all shadow-md ${radar.allow ? 'bg-slate-900 text-white hover:bg-teal-500' : 'bg-orange-500 text-white hover:bg-orange-600'}`}>
+                                确认用药 {med.dose_per_time}{med.unit}
+                            </button>
+                        ) : (
+                            <div className="px-6 py-3 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100 font-black text-[10px] flex items-center gap-2">
+                                <ShieldCheck size={14} /> 今日已达标
                             </div>
                         )}
                     </div>
-                </div>
-                <div className="flex flex-col gap-2 w-24">
-                    <button onClick={() => openRefillModal(med)} className={`p-2 rounded-2xl border flex items-center justify-center gap-2 ${isLowAmmo ? 'bg-red-50 text-red-500 border-red-200 animate-pulse' : 'bg-slate-50 text-slate-300 border-slate-100'}`}>
-                        <PackagePlus size={18} /> {isLowAmmo && <span className="text-[9px] font-black">补药</span>}
-                    </button>
-                    <button onClick={() => handleDeleteClick(med.id)} className={`p-2 rounded-2xl flex items-center justify-center gap-2 ${armedId === med.id ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-50 text-slate-300 hover:text-red-500 border border-slate-100'}`}>
-                        <Trash2 size={18} /> {armedId === med.id && <span className="text-[9px] font-black">确认?</span>}
-                    </button>
-                </div>
-            </div>
-            <div className="flex flex-wrap items-center justify-between gap-4 border-t pt-4">
-                <div className="flex gap-6">
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black text-slate-400 uppercase">余量</span>
-                        <div className={`px-3 py-1 rounded-full border text-xs font-black ${isLowAmmo ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-700 border-slate-100'}`}>{med.stock_amount} {med.unit}</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black text-slate-400 uppercase">雷达</span>
-                        <div className={`px-3 py-1 rounded-full border text-[10px] font-black flex items-center gap-1.5 ${radar.bg} ${radar.color}`}>
-                            <Timer size={12} /> {radar.text}
-                        </div>
-                    </div>
-                </div>
-                {!isCompleted ? (
-                    <button onClick={() => handleTakeMedClick(med)} className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase transition-all shadow-md ${radar.allow ? 'bg-slate-900 text-white hover:bg-teal-500' : 'bg-orange-500 text-white hover:bg-orange-600'}`}>
-                        确认用药 {med.dose_per_time}{med.unit}
-                    </button>
-                ) : (
-                    <div className="px-6 py-3 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100 font-black text-[10px] flex items-center gap-2">
-                        <ShieldCheck size={14} /> 今日已达标
-                    </div>
-                )}
+                </motion.div>
             </div>
         </Reorder.Item>
     );
@@ -342,20 +357,31 @@ export default function MedicineGuide() {
     };
 
     // 🧠 拖拽排序同步神经
+    // 🧠 拖拽排序同步神经 (修复重绘风暴版)
     const handleReorder = async (newOrder: any[], isPinnedGroup: boolean) => {
-        // 1. 瞬间更新本地 UI，保证物理动画丝滑不断层
+        // 🚀 核心修复：必须在本地先把每个元素的 sort_order 属性更新了！
+        // 否则渲染时 sort() 函数又会把它排回老样子，导致疯狂卡顿和回弹！
+        const updatedOrder = newOrder.map((med, index) => ({
+            ...med,
+            sort_order: index
+        }));
+
+        // 1. 瞬间更新本地 UI，阵型立刻锁定，绝对不反弹
         setMeds(prev => {
             const others = prev.filter(m => !!m.is_pinned !== isPinnedGroup);
-            return [...others, ...newOrder];
+            return [...others, ...updatedOrder];
         });
 
-        // 2. 后台静默同步给数据库
-        const promises = newOrder.map((med, index) =>
-            supabase.from('medicines').update({ sort_order: index }).eq('id', med.id)
-        );
-        await Promise.all(promises);
+        // 2. 后台静默同步给 Supabase
+        try {
+            const promises = updatedOrder.map((med) =>
+                supabase.from('medicines').update({ sort_order: med.sort_order }).eq('id', med.id)
+            );
+            await Promise.all(promises);
+        } catch (error) {
+            console.error("📡 排序同步失败:", error);
+        }
     };
-
     const unlockAudio = () => {
         try {
             const AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
