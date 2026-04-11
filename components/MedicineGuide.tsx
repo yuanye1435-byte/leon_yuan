@@ -4,7 +4,7 @@
 import { useRouter } from 'next/navigation';
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from './supabaseClient';
-import { motion, Reorder, useDragControls } from 'framer-motion';
+import { motion, Reorder, useDragControls, AnimatePresence } from 'framer-motion';
 // import { Trash2, Activity, CheckCircle2, Clock, Target, ShoppingCart, Flame, BarChart3, HeartPulse, LogOut, KeyRound, User, ShieldCheck, Radar, PackagePlus, Download, Timer, Eye, EyeOff, History, UserX, Pin } from 'lucide-react';
 import { Trash2, Activity, CheckCircle2, Clock, Target, ShoppingCart, Flame, BarChart3, HeartPulse, LogOut, KeyRound, User, ShieldCheck, Radar, PackagePlus, Download, Timer, Eye, EyeOff, History, UserX, Menu, Pin } from 'lucide-react';
 import PinyinMatch from 'pinyin-match'; // 🚀 新增：挂载拼音匹配引擎
@@ -187,9 +187,14 @@ const DraggableMedCard: React.FC<DraggableMedCardProps> = ({
 export default function MedicineGuide() {
     // 🚀 核心新增：急救弹窗控制中心 (放在 MedicineGuide 函数内部顶部)
     const [sosAlertMed, setSosAlertMed] = useState<any>(null);
+    // 🚀 核心新增：鉴权错误战术告警 (放在 MedicineGuide 顶部状态区)
+    // 🏥 德江县级温馨提示状态 (统一保留这个版本即可)
+    const [authError, setAuthError] = useState<{ title: string, msg: string, type: 'success' | 'error' } | null>(null);
     const router = useRouter();
     // 1. 🧠 【指挥中心】状态记忆区
     const [session, setSession] = useState<any>(null);
+    // 🏥 新增：德江县级温馨提示状态
+
     // 🛡️ 新增：记录是否完成了第一次身份检查
     const [isInitialLoading, setIsInitialLoading] = useState(true);
     // 🛡️ A.E.G.I.S. 神盾拦截状态
@@ -299,8 +304,12 @@ export default function MedicineGuide() {
     const [toast, setToast] = useState<{ msg: string, show: boolean }>({ msg: '', show: false });
     const [nowTime, setNowTime] = useState(new Date());
     const [armedId, setArmedId] = useState<string | null>(null);
+    // 🔐 鉴权系统增强状态
+    const [confirmPassword, setConfirmPassword] = useState(''); // 确认密码
+    const [showPassword, setShowPassword] = useState(false);     // 密码显隐控制
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false); // 确认密码显隐控制
 
-    // 2. 📊 【战情分析】Memo 逻辑
+    // 2. 📊 【战情分析】Memo 逻辑 (修复新兵空载漏洞版)
     const tacticalStats = useMemo(() => {
         let totalTargets = 0, destroyedTargets = 0, readyCount = 0;
         if (meds.length > 0) {
@@ -313,10 +322,20 @@ export default function MedicineGuide() {
                 }
             });
         }
-        const hitRate = totalTargets > 0 ? Math.round((destroyedTargets / totalTargets) * 100) : 100;
-        let defcon = { level: 5, color: 'text-emerald-400', bg: 'bg-emerald-500', status: '今日用药已完成', glow: 'shadow-[0_0_20px_rgba(52,211,153,0.3)]' };
-        if (readyCount > 3) defcon = { level: 1, color: 'text-red-500', bg: 'bg-red-600', status: '多项用药未完成', glow: 'shadow-[0_0_30px_rgba(239,68,68,0.5)] animate-pulse' };
-        else if (readyCount > 0) defcon = { level: 3, color: 'text-amber-400', bg: 'bg-amber-500', status: '当前少量待用药', glow: 'shadow-[0_0_20px_rgba(251,191,36,0.3)]' };
+
+        // 🚨 核心修复：如果是 0 任务，达成率就是 0
+        const hitRate = totalTargets > 0 ? Math.round((destroyedTargets / totalTargets) * 100) : 0;
+
+        // 🚨 核心修复：空载时的默认静默状态 (灰色)
+        let defcon = { level: 0, color: 'text-slate-400', bg: 'bg-slate-500', status: '暂无常规任务', glow: 'shadow-none' };
+
+        // 只有在有常规任务时，才启动三色战备雷达
+        if (totalTargets > 0) {
+            if (readyCount > 3) defcon = { level: 1, color: 'text-red-500', bg: 'bg-red-600', status: '多项待确认', glow: 'shadow-[0_0_30px_rgba(239,68,68,0.5)] animate-pulse' };
+            else if (readyCount > 0) defcon = { level: 3, color: 'text-amber-400', bg: 'bg-amber-500', status: '少量待用药', glow: 'shadow-[0_0_20px_rgba(251,191,36,0.3)]' };
+            else defcon = { level: 5, color: 'text-emerald-400', bg: 'bg-emerald-500', status: '今日已清空', glow: 'shadow-[0_0_20px_rgba(52,211,153,0.3)]' };
+        }
+
         return { totalTargets, destroyedTargets, hitRate, defcon };
     }, [meds, logs]);
 
@@ -472,7 +491,7 @@ export default function MedicineGuide() {
             await Promise.all([...promises, ...stockUpdates]);
             setSelectedIds([]); setShowFireModal(false); fetchData();
             playSciFiSound('success');
-            speakTacticalVoice(`全阵列齐射完毕。${targets.length} 个目标已清除。`);
+            speakTacticalVoice(`用药完毕。${targets.length} 一个药品已消耗。`);
         } catch (error) { alert('💥 火控系统异常！'); }
     };
 
@@ -571,15 +590,46 @@ export default function MedicineGuide() {
     };
 
     const handleAuth = async (e: React.FormEvent) => {
-        e.preventDefault(); setAuthLoading(true);
+        e.preventDefault();
+        setAuthLoading(true);
+        setAuthError(null);
+
+        // 🚨 核心增强：注册时的双重密码一致性核验
+        if (isSignUp) {
+            if (password !== confirmPassword) {
+                setAuthError({
+                    title: '核验失败',
+                    msg: '乡亲，两次输入的密码不一样哦，请重新检查一下。',
+                    type: 'error'
+                });
+                setAuthLoading(false);
+                return; // ⛔ 拦截，不继续执行注册
+            }
+        }
+
         if (isSignUp) {
             const { error } = await supabase.auth.signUp({ email, password });
-            if (error) { speakTacticalVoice('警告，注册受阻。'); alert(error.message); }
-            else { speakTacticalVoice('坐标建立。欢迎接入。'); alert('注册成功！'); }
+            if (error) {
+                let errMsg = error.message;
+                if (errMsg.includes('User already registered')) errMsg = '乡亲，这个账号已经登记过啦，请直接点击下方“已有通行证？立即接入”进行登录。';
+                if (errMsg.includes('Password should be at least')) errMsg = '密码太短啦，为了安全，请至少设置 6 位以上的密码。';
+                setAuthError({ title: '登记失败', msg: errMsg, type: 'error' });
+            } else {
+                setAuthError({ title: '登记成功', msg: '请前往您的邮箱查收验证邮件，点击链接即可激活您的专属健康档案。', type: 'success' });
+            }
         } else {
             const { error } = await supabase.auth.signInWithPassword({ email, password });
-            if (error) { speakTacticalVoice('权限拒绝。'); alert(error.message); }
-            else { playSciFiSound('login'); setTimeout(() => speakTacticalVoice('身份确认。欢迎回舱。'), 600); }
+            if (error) {
+                let errMsg = error.message;
+                // 🛑 核心修复：拦截你说的那个丑陋英文报错！
+                if (errMsg.includes('Invalid login credentials')) errMsg = '您输入的账号或密码不对哦，或者还没在这里登记过。';
+                if (errMsg.includes('Email not confirmed')) errMsg = '您的账号还没激活呢，去邮箱里点一下验证链接吧。';
+                setAuthError({ title: '登录失败', msg: errMsg, type: 'error' });
+            } else {
+                playSciFiSound('login');
+                // 既然是德江版，语音播报也可以改改
+                setTimeout(() => { if ('speechSynthesis' in window) window.speechSynthesis.speak(new SpeechSynthesisUtterance('欢迎进入德江健康平台')); }, 600);
+            }
         }
         setAuthLoading(false);
     };
@@ -708,30 +758,95 @@ export default function MedicineGuide() {
         );
     }
 
-    // 5. 🚪 【鉴权拦截】
+    // 5. 🚪 【德江智慧用药服务中心 - 统一认证界面】 (lc3000 视觉无痕版)
     if (!session) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
-                <div className="bg-white p-10 rounded-[3rem] shadow-2xl w-full max-w-md border-4 border-slate-800">
+                <div className="bg-white p-10 rounded-[3rem] shadow-2xl w-full max-w-md border-4 border-slate-800 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-2 bg-teal-500" />
+
                     <div className="text-center mb-10">
-                        <h1 className="text-5xl font-black italic tracking-tighter text-slate-900">LEON<span className="text-teal-500">.</span></h1>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.4em] mt-2">Central Authorization</p>
+                        <h1 className="text-4xl font-black italic tracking-tighter text-slate-900">德江智慧用药<span className="text-teal-500">.</span></h1>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.4em] mt-2">居民身份统一认证中心</p>
                     </div>
-                    <form onSubmit={handleAuth} className="space-y-4">
-                        <div className="relative">
+
+                    {/* 🚀 核心 1：取消 space-y-4，改为由内部组件控制间距，并开启 layout */}
+                    <motion.form layout onSubmit={handleAuth} className="flex flex-col">
+                        {/* 账号输入 */}
+                        <div className="relative mb-4">
                             <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="指挥官邮箱" className="w-full pl-12 pr-4 py-4 rounded-2xl bg-slate-50 border-none outline-none focus:ring-2 focus:ring-teal-400 font-bold" />
+                            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="请输入您的电子邮箱" className="w-full pl-12 pr-4 py-4 rounded-2xl bg-slate-50 border-none outline-none focus:ring-2 focus:ring-teal-400 font-bold text-slate-800" />
                         </div>
-                        <div className="relative">
+
+                        {/* 密码输入 */}
+                        <div className="relative mb-0"> {/* 💡 初始设为 0，间距由下方的动画组件动态控制 */}
                             <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="安全密钥" className="w-full pl-12 pr-4 py-4 rounded-2xl bg-slate-50 border-none outline-none focus:ring-2 focus:ring-teal-400 font-bold" />
+                            <input
+                                type={showPassword ? "text" : "password"}
+                                value={password}
+                                onChange={e => setPassword(e.target.value)}
+                                required
+                                placeholder="请输入安全密码"
+                                className="w-full pl-12 pr-12 py-4 rounded-2xl bg-slate-50 border-none outline-none focus:ring-2 focus:ring-teal-400 font-bold text-slate-800"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-teal-500 transition-colors"
+                            >
+                                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
                         </div>
-                        <button type="submit" disabled={authLoading} className="w-full bg-slate-900 hover:bg-teal-500 text-white font-black py-4 rounded-2xl transition-all shadow-lg mt-4">
-                            {authLoading ? '验证中...' : (isSignUp ? '注册新坐标' : '接入主控制台 ➔')}
-                        </button>
-                    </form>
+
+                        {/* 🚀 核心 2：带有物理布局补偿的确认框 */}
+                        <AnimatePresence initial={false}>
+                            {isSignUp && (
+                                <motion.div
+                                    layout
+                                    initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                                    animate={{ opacity: 1, height: 'auto', marginTop: 16 }} // 16px 即 mt-4
+                                    exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                                    transition={{ type: "spring", stiffness: 400, damping: 40 }}
+                                    className="relative overflow-hidden"
+                                >
+                                    <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                    <input
+                                        type={showConfirmPassword ? "text" : "password"}
+                                        value={confirmPassword}
+                                        onChange={e => setConfirmPassword(e.target.value)}
+                                        required
+                                        placeholder="请再次确认密码"
+                                        className="w-full pl-12 pr-12 py-4 rounded-2xl bg-slate-50 border-none outline-none focus:ring-2 focus:ring-teal-400 font-bold text-slate-800"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-teal-500 transition-colors"
+                                    >
+                                        {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        {/* 🚀 核心 3：按钮开启 layout，使其随上方的增减而平滑位移，绝无死角 */}
+                        <motion.button
+                            layout
+                            type="submit"
+                            disabled={authLoading}
+                            className="w-full bg-slate-900 hover:bg-teal-500 text-white font-black py-4 rounded-2xl transition-all shadow-lg mt-4 active:scale-95"
+                        >
+                            {authLoading ? '正在核验身份...' : (isSignUp ? '立即登记健康档案 ➔' : '进入控制中心 ➔')}
+                        </motion.button>
+                    </motion.form>
+
                     <div className="text-center mt-6">
-                        <button onClick={() => setIsSignUp(!isSignUp)} className="text-xs font-bold text-slate-400 hover:text-teal-500">{isSignUp ? '已有通行证？立即接入' : '没有通行证？申请注册'}</button>
+                        <button onClick={() => {
+                            setIsSignUp(!isSignUp);
+                            setAuthError(null);
+                        }} className="text-xs font-bold text-slate-400 hover:text-teal-500">
+                            {isSignUp ? '已有通行证？点此直接登录' : '没有账号？点此居民登记'}
+                        </button>
                     </div>
                 </div>
             </div>
@@ -753,10 +868,10 @@ export default function MedicineGuide() {
             {/* 顶部 Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-4 pr-2">
                 <div>
-                    <h1 className="text-5xl font-black italic tracking-tighter text-slate-900">LEON PULSE<span className="text-teal-500"> .</span></h1>
+                    <h1 className="text-5xl font-black italic tracking-tighter text-slate-900">德江县居民智慧用药云站<span className="text-teal-500"> .</span></h1>
                     {/* 找到 Header 里的 email 展示位 */}
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.5em] mt-1">
-                        Operator: <span className={`text-teal-500 transition-all ${stealth ? 'blur-sm select-none' : ''}`}>
+                        登记居民: <span className={`text-teal-500 transition-all ${stealth ? 'blur-sm select-none' : ''}`}>
                             {stealth ? 'COMMANDER_CONFIDENTIAL' : session?.user?.email}
                         </span>
                     </p>
@@ -947,7 +1062,7 @@ export default function MedicineGuide() {
             <div className="bg-white p-6 rounded-[2rem] shadow-sm mb-10 border border-slate-100 flex flex-col gap-6 relative z-50">
                 <div className="flex items-center gap-2 mb-2">
                     <PackagePlus size={16} className="text-teal-500" />
-                    <span className="text-xs font-black text-slate-400 uppercase tracking-widest">中央药典检索终端</span>
+                    <span className="text-xs font-black text-slate-400 uppercase tracking-widest">德江县标准常用药品目录查询</span>
                 </div>
 
                 {/* 1. 🌐 智能检索火控雷达 */}
@@ -961,7 +1076,7 @@ export default function MedicineGuide() {
                             setShowDropdown(true);
                         }}
                         onFocus={() => setShowDropdown(true)}
-                        placeholder="输入药品名称、拼音或分类检索中央数据库..."
+                        placeholder="输入药品名称、拼音或分类查找常备常用药物..."
                         className="w-full p-4 rounded-xl bg-slate-50 border-2 border-transparent focus:border-teal-400 outline-none font-bold text-slate-800 shadow-inner transition-all"
                     />
 
@@ -1146,12 +1261,12 @@ export default function MedicineGuide() {
                                             置顶/取消
                                         </button>
                                         <button onClick={toggleSelectAll} className="text-[9px] font-black uppercase px-2 py-1 rounded-md border border-slate-200 text-slate-400 hover:text-teal-600 transition-all">
-                                            {selectedIds.length > 0 ? '取消全选' : '全选待服'}
+                                            {selectedIds.length > 0 ? '取消全选' : '全选待用'}
                                         </button>
                                     </div>
                                 </div>
                                 <button onClick={handleSalvoFire} disabled={selectedIds.length === 0} className={`w-full xl:w-auto px-8 py-4 rounded-2xl font-black text-sm uppercase transition-all flex items-center justify-center gap-2 ${selectedIds.length > 0 ? 'bg-teal-500 text-white shadow-lg hover:bg-teal-400 cursor-pointer' : 'bg-slate-100 text-slate-300 cursor-not-allowed'}`}>
-                                    <CheckCircle2 size={20} /> 一键全阵列齐射
+                                    <CheckCircle2 size={20} /> 一键全一键确认今日服药射
                                 </button>
                             </div>
                         </div>
@@ -1460,6 +1575,36 @@ export default function MedicineGuide() {
                                 我已安全 / 仅记录数据
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+            {/* ==================== 🛡️ 德江民生版温馨提示弹窗 (修正版) ==================== */}
+            {authError && (
+                <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-all">
+                    <div className={`bg-white rounded-[2rem] p-8 w-full max-w-sm border-t-8 ${authError.type === 'success' ? 'border-teal-500 shadow-[0_0_50px_rgba(20,184,166,0.3)]' : 'border-orange-500 shadow-[0_0_50px_rgba(251,146,60,0.3)]'} text-center relative overflow-hidden`}>
+
+                        {/* 动态顶部装饰条 */}
+                        <div className={`absolute top-0 left-0 w-full h-2 ${authError.type === 'success' ? 'bg-teal-500' : 'bg-orange-500'} animate-pulse`} />
+
+                        <div className={`inline-block p-4 rounded-full mb-6 ${authError.type === 'success' ? 'bg-teal-50 text-teal-500' : 'bg-orange-50 text-orange-500'}`}>
+                            {authError.type === 'success' ? <ShieldCheck size={40} /> : <Activity size={40} />}
+                        </div>
+
+                        <h3 className="text-xl font-black text-slate-800 tracking-tight mb-3">
+                            {authError.title}
+                        </h3>
+
+                        <p className="text-sm font-bold text-slate-500 leading-relaxed mb-8 px-4">
+                            {/* 💡 核心修正：直接显示消息内容，不再需要 replace */}
+                            {authError.msg}
+                        </p>
+
+                        <button
+                            onClick={() => setAuthError(null)}
+                            className={`w-full py-4 rounded-2xl font-black text-sm uppercase transition-all shadow-md active:scale-95 ${authError.type === 'success' ? 'bg-teal-500 text-white hover:bg-teal-400' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
+                        >
+                            我知道了 ➔
+                        </button>
                     </div>
                 </div>
             )}
