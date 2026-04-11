@@ -4,7 +4,7 @@
 import { useRouter } from 'next/navigation';
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from './supabaseClient';
-import { Trash2, Activity, CheckCircle2, Clock, Target, ShoppingCart, Flame, BarChart3, HeartPulse, LogOut, KeyRound, User, ShieldCheck, Radar, PackagePlus, Download, Timer, Eye, EyeOff, History } from 'lucide-react';
+import { Trash2, Activity, CheckCircle2, Clock, Target, ShoppingCart, Flame, BarChart3, HeartPulse, LogOut, KeyRound, User, ShieldCheck, Radar, PackagePlus, Download, Timer, Eye, EyeOff, History, UserX } from 'lucide-react';
 import PinyinMatch from 'pinyin-match'; // 🚀 新增：挂载拼音匹配引擎
 // 🚀 从外部武备库挂载模块
 import { CONFLICT_MATRIX, MEDICINE_DB } from '../constants/tacticalData';
@@ -303,6 +303,32 @@ export default function MedicineGuide() {
         setMeds([]); setLogs([]);
     };
 
+    const handleDeleteAccount = async () => {
+        // 🛑 第一道保险栓：二次确认
+        const isConfirmed = window.confirm(
+            "⚠️ 警告：执行注销将永久抹除您的身份坐标、所有药品库存及历史作战日志！\n\n此操作不可逆。是否确认自毁？"
+        );
+        if (!isConfirmed) return;
+
+        try {
+            // 🚀 触发远端自毁程序
+            const { error } = await supabase.rpc('delete_self_account');
+
+            if (error) throw error;
+
+            // 🧹 清理本地战术大屏残影
+            await supabase.auth.signOut();
+            setSession(null);
+            setMeds([]);
+            setLogs([]);
+
+            alert('身份已注销，坐标已抹除。欢迎下次重新接入。');
+        } catch (error) {
+            console.error('自毁程序执行失败:', error);
+            alert('💥 核心数据库拦截了请求，注销失败！');
+        }
+    };
+
     const handleAddMed = async () => {
         if (!medName) return alert('药名不可为空！');
         const { error } = await supabase.from('medicines').insert([{
@@ -404,6 +430,10 @@ export default function MedicineGuide() {
                     </button>
                     <button onClick={handleLogout} className="text-slate-400 hover:text-red-500 flex items-center gap-2 text-[10px] font-black uppercase">
                         <LogOut size={14} /> 断开连接
+                    </button>
+                    {/* 🧨 新增：账号注销按钮 */}
+                    <button onClick={handleDeleteAccount} className="text-red-400 hover:text-red-600 flex items-center gap-2 text-[10px] font-black uppercase transition-all">
+                        <UserX size={14} /> 账号注销
                     </button>
                 </div>
             </div>
