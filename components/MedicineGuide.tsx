@@ -15,6 +15,8 @@ export default function MedicineGuide() {
     const router = useRouter();
     // 1. 🧠 【指挥中心】状态记忆区
     const [session, setSession] = useState<any>(null);
+    // 🛡️ 新增：记录是否完成了第一次身份检查
+    const [isInitialLoading, setIsInitialLoading] = useState(true);
     // 🛡️ A.E.G.I.S. 神盾拦截状态
     const [conflictAlert, setConflictAlert] = useState<{ med: any, msg: string } | null>(null);
     const [overrideTimer, setOverrideTimer] = useState(5); // 5秒强制越权倒计时
@@ -22,6 +24,54 @@ export default function MedicineGuide() {
     const [logs, setLogs] = useState<any[]>([]);
     // 🧠 上帝模式记录仪：存下用户强制修改的日期颜色
     const [dotOverrides, setDotOverrides] = useState<Record<string, string>>({});
+
+    // 🚀 全息裸眼 3D 引擎组件
+    const TiltCard = ({ children, className }: { children: React.ReactNode, className?: string }) => {
+        const [transform, setTransform] = useState("perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)");
+        const [glare, setGlare] = useState({ x: 50, y: 50, opacity: 0 });
+
+        const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            // 计算偏转轴心与角度 (最大偏转 20 度，打造深邃的空间感)
+            const rotateX = -((y / rect.height) - 0.5) * 20;
+            const rotateY = ((x / rect.width) - 0.5) * 20;
+
+            // 触发 3D 偏转，并产生轻微的物理悬浮放大 (1.02倍)
+            setTransform(`perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.02, 1.02, 1.02)`);
+            // 计算流体高光的光源跟随坐标
+            setGlare({ x: (x / rect.width) * 100, y: (y / rect.height) * 100, opacity: 1 });
+        };
+
+        const handleMouseLeave = () => {
+            // 鼠标移出，弹簧物理回弹归位
+            setTransform("perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)");
+            setGlare({ x: 50, y: 50, opacity: 0 });
+        };
+
+        return (
+            <div
+                className={`relative transition-all duration-200 ease-out will-change-transform ${className}`}
+                style={{ transform, transformStyle: "preserve-3d" }}
+                onMouseMove={handleMouseMove}
+                onMouseLeave={handleMouseLeave}
+            >
+                {/* 💫 动态流体液态玻璃高光层 */}
+                <div
+                    className="absolute inset-0 z-50 pointer-events-none transition-opacity duration-300"
+                    style={{
+                        opacity: glare.opacity,
+                        background: `radial-gradient(circle at ${glare.x}% ${glare.y}%, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 60%)`,
+                        borderRadius: 'inherit' // 完美贴合卡片圆角
+                    }}
+                />
+                {children}
+            </div>
+        );
+    };
+
 
     // 👆 手动变色逻辑：点一下换一个颜色，最后恢复真实数据
     const handleDotClick = (dateStr: string) => {
@@ -114,15 +164,20 @@ export default function MedicineGuide() {
 
     // 3. 🛰️ 【实时监听】Effects
     useEffect(() => {
-        const timer = setInterval(() => setNowTime(new Date()), 60000);
-        window.addEventListener('touchstart', unlockAudio, { once: true });
-        window.addEventListener('click', unlockAudio, { once: true });
-        supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
-        return () => {
-            clearInterval(timer);
-            subscription.unsubscribe();
-        };
+        // ... 原有的计时器代码 ...
+
+        // 修改这里：拿到 session 后，把初始加载状态设为 false
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setSession(session);
+            setIsInitialLoading(false); // 🔑 身份确认完毕，可以开门了
+        });
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setSession(session);
+            setIsInitialLoading(false); // 🔑 状态变化时也确保关闭加载
+        });
+
+        // ... 原有的 return 逻辑 ...
     }, []);
 
     useEffect(() => {
@@ -330,12 +385,46 @@ export default function MedicineGuide() {
 
     const handleAddMed = async () => {
         if (!medName) return alert('药名不可为空！');
+
+        let autoShape = 'round';
+        let autoColor1 = 'white';
+        let autoColor2 = null;
+
+        // 🔬 提升预测精度
+        const name = medName.trim();
+        if (name.includes('鱼肝油')) {
+            autoShape = 'oval'; autoColor1 = 'yellow';
+        } else if (name.includes('糖浆')) {
+            autoShape = 'syrup'; autoColor1 = 'brown';
+        } else if (name.includes('口服液') || name.includes('溶液')) {
+            autoShape = 'liquid'; autoColor1 = 'blue';
+        } else if (name.includes('胶囊')) {
+            autoShape = 'capsule'; autoColor1 = 'red'; autoColor2 = 'white';
+        } else if (name.includes('颗粒') || name.includes('冲剂') || name.includes('小柴胡')) {
+            autoShape = 'granules'; autoColor1 = 'brown';
+        } else if (name.includes('喷雾') || name.includes('气雾')) {
+            autoShape = 'aerosol'; autoColor1 = 'blue';
+        }
         const { error } = await supabase.from('medicines').insert([{
-            name: medName, expired_at: new Date(Date.now() + 31536000000).toISOString().split('T')[0],
-            stock_amount: parseFloat(stockAmount), times_per_day: parseInt(timesPerDay), dose_per_time: parseFloat(dosePerTime),
-            unit: unit, user_id: session.user.id
+            name: medName,
+            expired_at: new Date(Date.now() + 31536000000).toISOString().split('T')[0],
+            stock_amount: parseFloat(stockAmount),
+            times_per_day: parseInt(timesPerDay),
+            dose_per_time: parseFloat(dosePerTime),
+            unit: unit,
+            user_id: session.user.id,
+            // 🚀 将预测的形态直接写入数据库
+            shape: autoShape,
+            color1: autoColor1,
+            color2: autoColor2
         }]);
-        if (!error) { setMedName(''); fetchData(); playSciFiSound('success'); speakTacticalVoice(`${medName} 入库成功。`); }
+
+        if (!error) {
+            setMedName('');
+            fetchData();
+            playSciFiSound('success');
+            speakTacticalVoice(`${medName} 已成功归档。`);
+        }
     };
 
     const openRefillModal = (med: any) => { setSelectedMed(med); setRefillValue('20'); setIsRefillOpen(true); playSciFiSound('success'); };
@@ -375,6 +464,26 @@ export default function MedicineGuide() {
         const diff = next.getTime() - nowTime.getTime();
         return { status: 'STANDBY', text: `冷却中 ${Math.floor(diff / 3600000)}h ${Math.floor((diff % 3600000) / 60000)}m`, color: 'text-orange-500', bg: 'bg-orange-50', allow: false };
     };
+
+
+    // 🚀 核心拦截逻辑：如果还在检查身份，显示一个干净的背景，绝不显示登录框
+    if (isInitialLoading) {
+        return (
+            <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+                {/* 这里可以放个极简的 loading，或者干脆空着 */}
+                <div className="w-8 h-8 border-4 border-teal-500/20 border-t-teal-500 rounded-full animate-spin"></div>
+            </div>
+        );
+    }
+
+    // 只有明确检查完身份，且确实没登录，才显示登录页
+    if (!session) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
+                {/* ... 你的登录页代码 ... */}
+            </div>
+        );
+    }
 
     // 5. 🚪 【鉴权拦截】
     if (!session) {
@@ -441,7 +550,7 @@ export default function MedicineGuide() {
             <div className="mb-10 grid grid-cols-1 md:grid-cols-3 gap-6">
 
                 {/* 📊 卡片 1：战区歼灭率 (已保留防窥装甲) */}
-                <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50 flex flex-col justify-between min-h-[160px] relative overflow-hidden transition-all hover:border-teal-100 hover:shadow-lg">
+                <TiltCard className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50 flex flex-col justify-between min-h-[160px] relative overflow-hidden transition-all hover:border-teal-100 hover:shadow-lg">
                     <div className="absolute -right-8 -top-8 w-32 h-32 bg-teal-50 rounded-full opacity-60 pointer-events-none z-0"></div>
                     <div className="flex items-center gap-2 text-slate-500 relative z-10">
                         <span className="text-teal-400 text-base">🎯</span>
@@ -458,10 +567,10 @@ export default function MedicineGuide() {
                             已服用 {tacticalStats.destroyedTargets} / 计划 {tacticalStats.totalTargets} 次
                         </div>
                     </div>
-                </div>
+                </TiltCard>
 
                 {/* 🔥 卡片 2：战术连胜记录 (已保留防窥装甲) */}
-                <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50 flex flex-col justify-between min-h-[160px] transition-all hover:border-orange-100 hover:shadow-lg">
+                <TiltCard className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50 flex flex-col justify-between min-h-[160px] transition-all hover:border-orange-100 hover:shadow-lg">
                     <div className="flex items-center gap-2 text-slate-500">
                         <span className="text-orange-400 text-base">🔥</span>
                         <span className="text-[11px] font-black tracking-widest uppercase text-slate-400">健康打卡连胜</span>
@@ -477,13 +586,13 @@ export default function MedicineGuide() {
                             {currentStreak > 0 ? "请保持当前节奏，您离健康又近了一步！" : "健康需要坚持，明天也要记得按时用药哦"}
                         </div>
                     </div>
-                </div>
+                </TiltCard>
 
                 {/* 📈 卡片 3：当月服药热力追踪 (北京时间锁死版) */}
                 <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50 flex flex-col justify-between min-h-[160px] transition-all hover:border-indigo-100 hover:shadow-lg">
 
                     {/* 标题与图例 */}
-                    <div className="flex flex-col gap-3 mb-4">
+                    <TiltCard className="flex flex-col gap-3 mb-4">
                         <div className="flex items-center justify-between text-slate-500">
                             <div className="flex items-center gap-2">
                                 <span className="text-indigo-400 text-base">📅</span>
@@ -497,7 +606,7 @@ export default function MedicineGuide() {
                             <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-red-400"></div>严重异常</div>
                             <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-slate-200"></div>未开始/无效</div>
                         </div>
-                    </div>
+                    </TiltCard>
 
                     {/* 月历矩阵 */}
                     <div className="flex-1 flex items-center justify-center w-full relative z-10">
@@ -802,9 +911,10 @@ export default function MedicineGuide() {
                                         )}
                                         <div>
                                             {/* 找到 meds.map 里的 h3 标签 */}
-                                            <h3 className={`text-2xl font-black transition-all ${stealth ? 'blur-md select-none' : ''}`}>
+                                            <h3 className={`text-2xl font-black transition-all ${isCompleted ? 'text-slate-300' : 'text-slate-800'
+                                                } ${stealth ? 'blur-md select-none' : ''}`}>
                                                 {stealth ? '••••••••' : med.name}
-                                            </h3>                                            {!stealth && med.times_per_day > 0 && (
+                                            </h3>                                 {!stealth && med.times_per_day > 0 && (
                                                 <div className="mt-2">
                                                     <span className="text-[10px] font-black text-slate-400 uppercase">进度 {todayCount}/{med.times_per_day}</span>
                                                     <div className="flex gap-1.5 w-40 mt-1">
