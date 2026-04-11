@@ -708,15 +708,6 @@ export default function MedicineGuide() {
         );
     }
 
-    // 只有明确检查完身份，且确实没登录，才显示登录页
-    if (!session) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
-                {/* ... 你的登录页代码 ... */}
-            </div>
-        );
-    }
-
     // 5. 🚪 【鉴权拦截】
     if (!session) {
         return (
