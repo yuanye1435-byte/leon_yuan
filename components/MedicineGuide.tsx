@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from './supabaseClient';
 import { Trash2, Activity, CheckCircle2, Clock, Target, ShoppingCart, Flame, BarChart3, HeartPulse, LogOut, KeyRound, User, ShieldCheck, Radar, PackagePlus, Download, Timer, Eye, EyeOff, History } from 'lucide-react';
-
+import PinyinMatch from 'pinyin-match'; // 🚀 新增：挂载拼音匹配引擎
 // 🚀 从外部武备库挂载模块
 import { CONFLICT_MATRIX, MEDICINE_DB } from '../constants/tacticalData';
 import { playSciFiSound, speakTacticalVoice } from '../utils/audioEngine';
@@ -20,6 +20,27 @@ export default function MedicineGuide() {
     const [overrideTimer, setOverrideTimer] = useState(5); // 5秒强制越权倒计时
     const [meds, setMeds] = useState<any[]>([]);
     const [logs, setLogs] = useState<any[]>([]);
+    // 🧠 上帝模式记录仪：存下用户强制修改的日期颜色
+    const [dotOverrides, setDotOverrides] = useState<Record<string, string>>({});
+
+    // 👆 手动变色逻辑：点一下换一个颜色，最后恢复真实数据
+    const handleDotClick = (dateStr: string) => {
+        setDotOverrides(prev => {
+            const current = prev[dateStr];
+            let next = 'green';
+            if (current === 'green') next = 'yellow';
+            else if (current === 'yellow') next = 'red';
+            else if (current === 'red') next = 'grey';
+            else if (current === 'grey') next = ''; // 恢复真实数据
+
+            if (!next) {
+                const newState = { ...prev };
+                delete newState[dateStr];
+                return newState;
+            }
+            return { ...prev, [dateStr]: next };
+        });
+    };
     const [loading, setLoading] = useState(false);
     const [authLoading, setAuthLoading] = useState(false);
     const [email, setEmail] = useState('');
@@ -48,6 +69,7 @@ export default function MedicineGuide() {
     const [refillValue, setRefillValue] = useState('20');
     const [stealth, setStealth] = useState(false);
     const [retroMed, setRetroMed] = useState<any>(null);
+    const [cooldownMed, setCooldownMed] = useState<any>(null);
     const [toast, setToast] = useState<{ msg: string, show: boolean }>({ msg: '', show: false });
     const [nowTime, setNowTime] = useState(new Date());
     const [armedId, setArmedId] = useState<string | null>(null);
@@ -66,9 +88,9 @@ export default function MedicineGuide() {
             });
         }
         const hitRate = totalTargets > 0 ? Math.round((destroyedTargets / totalTargets) * 100) : 100;
-        let defcon = { level: 5, color: 'text-emerald-400', bg: 'bg-emerald-500', status: '全域安全', glow: 'shadow-[0_0_20px_rgba(52,211,153,0.3)]' };
-        if (readyCount > 3) defcon = { level: 1, color: 'text-red-500', bg: 'bg-red-600', status: '阵地失守', glow: 'shadow-[0_0_30px_rgba(239,68,68,0.5)] animate-pulse' };
-        else if (readyCount > 0) defcon = { level: 3, color: 'text-amber-400', bg: 'bg-amber-500', status: '交火冲突', glow: 'shadow-[0_0_20px_rgba(251,191,36,0.3)]' };
+        let defcon = { level: 5, color: 'text-emerald-400', bg: 'bg-emerald-500', status: '今日用药已完成', glow: 'shadow-[0_0_20px_rgba(52,211,153,0.3)]' };
+        if (readyCount > 3) defcon = { level: 1, color: 'text-red-500', bg: 'bg-red-600', status: '多项用药未完成', glow: 'shadow-[0_0_30px_rgba(239,68,68,0.5)] animate-pulse' };
+        else if (readyCount > 0) defcon = { level: 3, color: 'text-amber-400', bg: 'bg-amber-500', status: '当前少量待用药', glow: 'shadow-[0_0_20px_rgba(251,191,36,0.3)]' };
         return { totalTargets, destroyedTargets, hitRate, defcon };
     }, [meds, logs]);
 
@@ -194,7 +216,7 @@ export default function MedicineGuide() {
                 // 💥 触发死锁！
                 triggerConflict = {
                     med: med,
-                    msg: `${currentGroup.alertMsg}\n\n[锁定源]：今日已服用 "${conflictingLog.medicine_name}"`
+                    msg: `${currentGroup.alertMsg}\n\n今日已服用 "${conflictingLog.medicine_name}"`
                 };
             }
         }
@@ -204,9 +226,9 @@ export default function MedicineGuide() {
             setConflictAlert(triggerConflict);
             setOverrideTimer(5); // 重置 5 秒保险栓
             playSciFiSound('warning');
-            if (typeof speakTacticalVoice !== 'undefined') {
-                speakTacticalVoice('警告！侦测到高危交叉火力，火控系统已锁定！');
-            }
+            // if (typeof speakTacticalVoice !== 'undefined') {
+            //     speakTacticalVoice('警告！侦测到高危交叉火力，火控系统已锁定！');
+            // }
 
             // 启动 5 秒强制冷静倒计时
             let timeLeft = 5;
@@ -220,6 +242,17 @@ export default function MedicineGuide() {
 
         // 5. 没冲突？放行！走原来的雷达和回溯逻辑
         const radar = getRadarInfo(med.last_taken_at, med.times_per_day);
+
+        // 💛 新增：柔性冷却期提醒（警告但不锁死）
+        if (radar.status === 'STANDBY') {
+            // 💛 柔性冷却期提醒（替换掉丑陋的 window.confirm）
+            if (radar.status === 'STANDBY') {
+                playSciFiSound('warning'); // 或者换成柔和的提示音
+                setCooldownMed(med); // 👈 直接把药塞进状态里，召唤咱们自己画的弹窗！
+                return;
+            }
+        }
+        // 下面保留原有的 OVERDUE 判断...
         if (radar.status === 'OVERDUE') {
             setRetroMed(med);
             playSciFiSound('warning');
@@ -354,7 +387,7 @@ export default function MedicineGuide() {
             {/* 顶部 Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-4 pr-2">
                 <div>
-                    <h1 className="text-5xl font-black italic tracking-tighter text-slate-900">LEON PULSE<span className="text-teal-500">.</span></h1>
+                    <h1 className="text-5xl font-black italic tracking-tighter text-slate-900">LEON PULSE<span className="text-teal-500"> .</span></h1>
                     {/* 找到 Header 里的 email 展示位 */}
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.5em] mt-1">
                         Operator: <span className={`text-teal-500 transition-all ${stealth ? 'blur-sm select-none' : ''}`}>
@@ -375,28 +408,144 @@ export default function MedicineGuide() {
                 </div>
             </div>
 
-            {/* 仪表盘统计 */}
+            {/* 仪表盘统计：三位一体全景雷达 */}
             <div className="mb-10 grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* 核心运转率和连胜天数也加上模糊 */}
-                <div className={`text-6xl font-black italic tracking-tighter text-teal-400 transition-all ${stealth ? 'blur-lg select-none' : ''}`}>
-                    {stealth ? '88' : tacticalStats.hitRate}%
-                </div>
-                <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 flex flex-col justify-between">
-                    <div className="flex items-center gap-2 text-slate-400 mb-4 text-xs font-bold uppercase tracking-widest"><Flame size={16} className="text-orange-500" /> 战术连胜</div>
-                    <div className="flex items-end gap-3"><div className="text-6xl font-black italic tracking-tighter text-slate-800">{currentStreak}</div><div className="text-sm font-bold text-slate-400 mb-2">DAYS</div></div>
-                </div>
-                <div className="bg-white rounded-[2.5rem] p-8 border-2 border-slate-100 flex-1 flex flex-col justify-between">
-                    <div className="flex items-center gap-2 mb-4 text-slate-400 text-xs font-black uppercase tracking-widest"><Activity size={16} /> 行动热力矩阵</div>
-                    <div className="grid grid-cols-7 gap-2">
-                        {Array.from({ length: 28 }).map((_, i) => (
-                            <div key={i} className="aspect-square rounded-md bg-slate-50 border border-slate-100 group hover:border-teal-300 transition-all flex items-center justify-center">
-                                <div className="w-2 h-2 rounded-full bg-slate-200 group-hover:bg-teal-400" />
-                            </div>
-                        ))}
+
+                {/* 📊 卡片 1：战区歼灭率 (已保留防窥装甲) */}
+                <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50 flex flex-col justify-between min-h-[160px] relative overflow-hidden transition-all hover:border-teal-100 hover:shadow-lg">
+                    <div className="absolute -right-8 -top-8 w-32 h-32 bg-teal-50 rounded-full opacity-60 pointer-events-none z-0"></div>
+                    <div className="flex items-center gap-2 text-slate-500 relative z-10">
+                        <span className="text-teal-400 text-base">🎯</span>
+                        <span className="text-[11px] font-black tracking-widest uppercase text-slate-400">今日用药达成率</span>
+                    </div>
+                    <div className="mt-4 relative z-10 flex flex-col gap-1">
+                        <div className="flex items-baseline gap-1">
+                            <span className={`text-6xl font-black text-teal-400 italic tracking-tighter transition-all ${stealth ? 'blur-lg select-none' : ''}`}>
+                                {stealth ? '88' : tacticalStats.hitRate}
+                            </span>
+                            <span className="text-2xl font-black text-teal-400 opacity-80">%</span>
+                        </div>
+                        <div className="text-[10px] font-bold text-slate-400 tracking-tight">
+                            已服用 {tacticalStats.destroyedTargets} / 计划 {tacticalStats.totalTargets} 次
+                        </div>
                     </div>
                 </div>
-            </div>
 
+                {/* 🔥 卡片 2：战术连胜记录 (已保留防窥装甲) */}
+                <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50 flex flex-col justify-between min-h-[160px] transition-all hover:border-orange-100 hover:shadow-lg">
+                    <div className="flex items-center gap-2 text-slate-500">
+                        <span className="text-orange-400 text-base">🔥</span>
+                        <span className="text-[11px] font-black tracking-widest uppercase text-slate-400">健康打卡连胜</span>
+                    </div>
+                    <div className="mt-4 flex flex-col gap-1">
+                        <div className="flex items-baseline gap-2">
+                            <span className={`text-6xl font-black text-slate-800 italic tracking-tighter transition-all ${stealth ? 'blur-lg select-none' : ''}`}>
+                                {stealth ? '8' : currentStreak}
+                            </span>
+                            <span className="text-sm font-black text-slate-400 uppercase tracking-widest">Days</span>
+                        </div>
+                        <div className="text-[10px] font-bold text-orange-400/80 tracking-tight">
+                            {currentStreak > 0 ? "请保持当前节奏，您离健康又近了一步！" : "健康需要坚持，明天也要记得按时用药哦"}
+                        </div>
+                    </div>
+                </div>
+
+                {/* 📈 卡片 3：当月服药热力追踪 (北京时间锁死版) */}
+                <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50 flex flex-col justify-between min-h-[160px] transition-all hover:border-indigo-100 hover:shadow-lg">
+
+                    {/* 标题与图例 */}
+                    <div className="flex flex-col gap-3 mb-4">
+                        <div className="flex items-center justify-between text-slate-500">
+                            <div className="flex items-center gap-2">
+                                <span className="text-indigo-400 text-base">📅</span>
+                                <span className="text-[11px] font-black tracking-widest uppercase text-slate-400">本月热力追踪</span>
+                            </div>
+                        </div>
+                        {/* 🏷️ 新增图例区 */}
+                        <div className="flex flex-wrap gap-2 text-[9px] font-bold text-slate-400">
+                            <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>全量用药</div>
+                            <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-amber-400"></div>少量漏用</div>
+                            <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-red-400"></div>严重异常</div>
+                            <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-slate-200"></div>未开始/无效</div>
+                        </div>
+                    </div>
+
+                    {/* 月历矩阵 */}
+                    <div className="flex-1 flex items-center justify-center w-full relative z-10">
+                        {/* 采用 7 列网格，完美契合一周 */}
+                        <div className="grid grid-cols-7 gap-1.5 w-full">
+                            {(() => {
+                                // ⌚ 核心：强行焊死北京时间！不管浏览器在哪，只认东八区
+                                const bjNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Shanghai" }));
+                                const year = bjNow.getFullYear();
+                                const month = bjNow.getMonth();
+                                const todayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(bjNow.getDate()).padStart(2, '0')}`;
+
+                                // 获取本月总天数
+                                const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+                                // 侦测“入坑时间”：找到日志里的第一条，它之前的全算作废（灰掉或打叉）
+                                const firstLogDate = logs.length > 0 ? logs[logs.length - 1].taken_at.split('T')[0] : todayStr;
+
+                                return Array.from({ length: daysInMonth }).map((_, i) => {
+                                    const day = i + 1;
+                                    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+                                    // --- 1. 真实数据状态推演 ---
+                                    let status = 'future'; // 默认未来（还没到的日子）
+
+                                    if (dateStr > todayStr) {
+                                        status = 'future';
+                                    } else if (dateStr < firstLogDate) {
+                                        status = 'grey'; // 还没开始用的日子，直接作废
+                                    } else {
+                                        // 算今天的真实数据
+                                        const dayLogs = logs.filter(log => log.taken_at.startsWith(dateStr));
+                                        if (dayLogs.length === 0) {
+                                            status = dateStr === todayStr ? 'grey' : 'red'; // 今天没吃先灰着，昨天没吃算严重漏服(红)
+                                        } else if (dayLogs.length >= meds.length) {
+                                            status = 'green'; // 达标
+                                        } else {
+                                            status = 'yellow'; // 吃了一部分
+                                        }
+                                    }
+
+                                    // --- 2. ⚡ 上帝模式接管 ---
+                                    // 如果你手动点过这个点，直接用你点的颜色覆盖真实数据！
+                                    const finalStatus = dotOverrides[dateStr] || status;
+
+                                    // --- 3. 渲染样式 ---
+                                    let dotColor = 'bg-slate-100/50'; // 未来的日子若隐若现
+                                    let glow = '';
+                                    let textStyle = 'text-slate-400 font-bold';
+
+                                    if (finalStatus === 'green') { dotColor = 'bg-emerald-400'; glow = 'shadow-[0_0_8px_rgba(52,211,153,0.5)] scale-125'; }
+                                    else if (finalStatus === 'yellow') { dotColor = 'bg-amber-400'; glow = 'shadow-[0_0_8px_rgba(251,191,36,0.5)]'; textStyle = 'text-amber-700'; }
+                                    else if (finalStatus === 'red') { dotColor = 'bg-red-400'; glow = 'shadow-[0_0_8px_rgba(248,113,113,0.5)]'; textStyle = 'text-red-700 font-black'; }
+                                    else if (finalStatus === 'grey') { dotColor = 'bg-slate-200'; textStyle = 'line-through text-slate-300'; } // 作废的日子加删除线
+
+                                    return (
+                                        <div
+                                            key={day}
+                                            title={`${dateStr} (点击开启上帝模式修改状态)`}
+                                            onClick={() => handleDotClick(dateStr)}
+                                            className="aspect-square rounded flex items-center justify-center cursor-pointer transition-all hover:bg-slate-50 border border-transparent hover:border-slate-200 group relative"
+                                        >
+                                            {/* 背景数字 */}
+                                            <span className={`absolute text-[9px] z-0 opacity-50 group-hover:opacity-10 transition-all ${textStyle}`}>
+                                                {day}
+                                            </span>
+                                            {/* 前景圆点 */}
+                                            <div className={`w-1.5 h-1.5 rounded-full z-10 transition-all duration-300 ${dotColor} ${glow} group-hover:opacity-80`} />
+                                        </div>
+                                    );
+                                });
+                            })()}
+                        </div>
+                    </div>
+                </div>
+
+            </div>
             {/* ==================== 🚀 智能补给部署舱 (直连 Supabase) ==================== */}
             <div className="bg-white p-6 rounded-[2rem] shadow-sm mb-10 border border-slate-100 flex flex-col gap-6 relative z-50">
                 <div className="flex items-center gap-2 mb-2">
@@ -422,36 +571,48 @@ export default function MedicineGuide() {
                     {/* ⚡ 全息下拉联想面板 */}
                     {showDropdown && searchQuery.length > 0 && (
                         <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 max-h-64 overflow-y-auto custom-scrollbar overflow-hidden z-[100]">
-                            {globalMeds.filter(med => med.med_name.includes(searchQuery) || med.category_sub.includes(searchQuery)).length > 0 ? (
-                                globalMeds.filter(med => med.med_name.includes(searchQuery) || med.category_sub.includes(searchQuery)).slice(0, 10).map(med => (
-                                    <div
-                                        key={med.id}
-                                        onClick={() => {
-                                            // 🎯 一键锁定！参数自动填装！
-                                            setSearchQuery(med.med_name);
-                                            setMedName(med.med_name);
-                                            setUnit(med.default_unit);
-                                            setDosePerTime(med.default_dose.toString());
-                                            setTimesPerDay(med.default_times.toString());
-                                            setShowDropdown(false);
-                                            playSciFiSound('success');
-                                        }}
-                                        className="p-3 border-b border-slate-50 hover:bg-teal-50 cursor-pointer transition-all flex items-center justify-between group"
-                                    >
-                                        <div className="flex flex-col">
-                                            <span className="font-black text-slate-700 group-hover:text-teal-700">{med.med_name}</span>
-                                            <span className="text-[10px] text-slate-400 uppercase tracking-widest">{med.category_sub}</span>
+                            {(() => {
+                                // 💡 提取过滤逻辑，避免重复计算
+                                const matchedMeds = globalMeds.filter(med => {
+                                    const query = searchQuery.toLowerCase();
+                                    // 1. 原生汉字或分类直接匹配
+                                    if (med.med_name.includes(query) || med.category_sub?.includes(query)) return true;
+                                    // 2. 🚀 拼音匹配引擎：支持 "blf" (首字母), "buluofen" (全拼), 甚至同音错别字
+                                    if (PinyinMatch.match(med.med_name, query)) return true;
+                                    return false;
+                                });
+
+                                return matchedMeds.length > 0 ? (
+                                    matchedMeds.slice(0, 10).map(med => (
+                                        <div
+                                            key={med.id}
+                                            onClick={() => {
+                                                // 🎯 一键锁定！参数自动填装！
+                                                setSearchQuery(med.med_name);
+                                                setMedName(med.med_name);
+                                                setUnit(med.default_unit);
+                                                setDosePerTime(med.default_dose?.toString() || '1');
+                                                setTimesPerDay(med.default_times?.toString() || '3');
+                                                setShowDropdown(false);
+                                                playSciFiSound('success');
+                                            }}
+                                            className="p-3 border-b border-slate-50 hover:bg-teal-50 cursor-pointer transition-all flex items-center justify-between group"
+                                        >
+                                            <div className="flex flex-col">
+                                                <span className="font-black text-slate-700 group-hover:text-teal-700">{med.med_name}</span>
+                                                <span className="text-[10px] text-slate-400 uppercase tracking-widest">{med.category_sub}</span>
+                                            </div>
+                                            <div className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md group-hover:bg-teal-100 group-hover:text-teal-600">
+                                                单次 {med.default_dose}{med.default_unit} x {med.default_times}次/日
+                                            </div>
                                         </div>
-                                        <div className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md group-hover:bg-teal-100 group-hover:text-teal-600">
-                                            单次 {med.default_dose}{med.default_unit} x {med.default_times}次/日
-                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="p-4 text-center text-xs font-bold text-slate-400">
+                                        ⚠️ 未在药典找到匹配项，可直接点击“确认添加药品”手动入库。
                                     </div>
-                                ))
-                            ) : (
-                                <div className="p-4 text-center text-xs font-bold text-slate-400">
-                                    ⚠️ 未在中央药典找到匹配项，可直接手动完成入库。
-                                </div>
-                            )}
+                                );
+                            })()}
                         </div>
                     )}
                 </div>
@@ -484,7 +645,7 @@ export default function MedicineGuide() {
                         {/* ⚡ 展开的九宫格快选矩阵 */}
                         {showUnitDrop && (
                             <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-100 shadow-2xl rounded-xl p-2 z-[100] grid grid-cols-4 gap-1">
-                                {['粒', '片', '包', '支', 'ml', '滴', '贴', '喷','针','袋','盒','盖'].map(u => (
+                                {['粒', '片', '包', '支', 'ml', '滴', '贴', '喷', '针', '袋', '盒', '盖'].map(u => (
                                     <button
                                         key={u}
                                         onClick={() => { setUnit(u); setShowUnitDrop(false); }}
@@ -529,7 +690,7 @@ export default function MedicineGuide() {
                     }}
                     className="w-full bg-slate-900 hover:bg-teal-500 text-white font-black py-4 rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
                 >
-                    部署入库 ➔
+                    确认添加药品 ➔
                 </button>
             </div>
 
@@ -540,18 +701,23 @@ export default function MedicineGuide() {
                     <div className={`mb-8 bg-white rounded-[2.5rem] p-6 border border-slate-100 transition-all ${tacticalStats.defcon.glow}`}>
                         <div className="flex flex-col xl:flex-row justify-between items-center gap-6">
                             <div className="flex items-center gap-5 w-full xl:w-auto">
-                                <div className={`w-16 h-16 rounded-2xl border flex flex-col items-center justify-center bg-slate-50 ${tacticalStats.defcon.color}`}>
-                                    <span className="text-[10px] font-black uppercase opacity-50">Defcon</span>
-                                    <span className="text-3xl font-black leading-none">{tacticalStats.defcon.level}</span>
+                                {/* 📅 动态日历图标 (自动获取系统当天的号数) */}
+                                <div className={`w-16 h-16 rounded-2xl border flex flex-col items-center justify-center bg-slate-50 transition-all ${tacticalStats.defcon.color}`}>
+                                    <span className="text-[10px] font-black uppercase opacity-60">
+                                        TODAY
+                                    </span>
+                                    <span className="text-3xl font-black leading-none mt-0.5">
+                                        {new Date().getDate()}
+                                    </span>
                                 </div>
                                 <div>
-                                    <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase flex items-center gap-3">战情中枢 <span className={`text-[10px] px-2.5 py-1 rounded-full ${tacticalStats.defcon.bg} text-white font-black`}>{tacticalStats.defcon.status}</span></h2>
+                                    <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase flex items-center gap-3">今日用药概览 <span className={`text-[10px] px-2.5 py-1 rounded-full ${tacticalStats.defcon.bg} text-white font-black`}>{tacticalStats.defcon.status}</span></h2>
                                     <p className="text-slate-400 text-[10px] font-black tracking-widest uppercase mt-1">Global Operations Dashboard</p>
                                 </div>
                             </div>
                             <div className="flex-1 w-full xl:w-auto bg-slate-50/50 rounded-2xl p-5 border border-slate-100 flex flex-col justify-center">
                                 <div className="flex justify-between items-end mb-3">
-                                    <span className="text-slate-400 text-[10px] font-black uppercase">今日目标歼灭率</span>
+                                    <span className="text-slate-400 text-[10px] font-black uppercase">今日用药进度</span>
                                     {/* 🎯 找到战情中枢显示百分比的地方 */}
                                     <span className={`text-3xl font-black text-teal-500 leading-none tabular-nums drop-shadow-sm transition-all ${stealth ? 'blur-lg select-none' : ''
                                         }`}>
@@ -571,7 +737,7 @@ export default function MedicineGuide() {
                                         <div className={`w-2 h-2 rounded-full ${selectedIds.length > 0 ? 'bg-teal-500 animate-pulse' : 'bg-slate-300'}`} />
                                         Locked: {selectedIds.length}
                                     </div>
-                                    <button onClick={toggleSelectAll} className="text-[9px] font-black uppercase px-2 py-1 rounded-md border border-slate-200 text-slate-400 hover:text-teal-600 transition-all">{selectedIds.length > 0 ? 'Deselect All' : 'Select All Ready'}</button>
+                                    <button onClick={toggleSelectAll} className="text-[9px] font-black uppercase px-2 py-1 rounded-md border border-slate-200 text-slate-400 hover:text-teal-600 transition-all">{selectedIds.length > 0 ? '取消全选' : '全选当前可服用药物'}</button>
                                 </div>
                                 <button onClick={handleSalvoFire} disabled={selectedIds.length === 0} className={`w-full xl:w-auto px-8 py-4 rounded-2xl font-black text-sm uppercase transition-all flex items-center justify-center gap-2 ${selectedIds.length > 0 ? 'bg-teal-500 text-white shadow-lg hover:bg-teal-400 cursor-pointer' : 'bg-slate-100 text-slate-300 cursor-not-allowed'}`}>
                                     <CheckCircle2 size={20} /> 一键全阵列齐射
@@ -639,7 +805,7 @@ export default function MedicineGuide() {
                                 </div>
                                     {!isCompleted ? (
                                         <button onClick={() => handleTakeMedClick(med)} className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase transition-all shadow-md ${radar.allow ? 'bg-slate-900 text-white hover:bg-teal-500' : 'bg-orange-500 text-white hover:bg-orange-600'}`}>
-                                            确认执行 {med.dose_per_time}{med.unit}
+                                            确认用药 {med.dose_per_time}{med.unit}
                                         </button>
                                     ) : (
                                         <div className="px-6 py-3 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100 font-black text-[10px] flex items-center gap-2">
@@ -694,7 +860,7 @@ export default function MedicineGuide() {
                             <div className="inline-block p-5 rounded-full bg-red-500 text-white mb-6 shadow-[0_0_40px_rgba(239,68,68,0.8)] animate-pulse">
                                 <ShieldCheck size={56} />
                             </div>
-                            <h3 className="text-3xl font-black italic text-red-500 uppercase tracking-widest drop-shadow-md">A.E.G.I.S. 拦截协议</h3>
+                            <h3 className="text-3xl font-black italic text-red-500 uppercase tracking-widest drop-shadow-md">用药冲突安全预警</h3>
                             <p className="text-sm font-bold text-slate-300 mt-6 whitespace-pre-line leading-relaxed px-4">
                                 {conflictAlert.msg}
                             </p>
@@ -705,7 +871,7 @@ export default function MedicineGuide() {
                                 onClick={() => setConflictAlert(null)}
                                 className="bg-slate-800 hover:bg-slate-700 text-white py-5 rounded-2xl font-black text-sm border-2 border-slate-700 transition-all"
                             >
-                                🛡️ 听劝！取消部署
+                                🛡️ 取消本次用药
                             </button>
                             <button
                                 disabled={overrideTimer > 0}
@@ -719,7 +885,7 @@ export default function MedicineGuide() {
                                     : 'bg-red-600 hover:bg-red-500 text-white shadow-[0_0_30px_rgba(239,68,68,0.6)] border-2 border-red-500'
                                     }`}
                             >
-                                {overrideTimer > 0 ? `🚨 强行越权锁定 (${overrideTimer}s)` : '⚠️ 了解风险，强行授权发射'}
+                                {overrideTimer > 0 ? `🚨 强行越权锁定 (${overrideTimer}s)` : '⚠️ 了解风险，确认用药'}
                             </button>
                         </div>
                     </div>
@@ -766,14 +932,14 @@ export default function MedicineGuide() {
                     <div className="relative bg-white rounded-[3rem] p-8 w-full max-w-sm border-4 border-slate-800 shadow-2xl">
                         <div className="text-center mb-6">
                             <div className="inline-block p-3 rounded-2xl bg-teal-50 text-teal-500 mb-4"><PackagePlus size={32} /></div>
-                            <h3 className="text-2xl font-black italic text-slate-900 uppercase">战术补给请求</h3>
+                            <h3 className="text-2xl font-black italic text-slate-900 uppercase">药品库存补充</h3>
                             <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">
                                 Target: <span className={`text-teal-500 transition-all ${stealth ? 'blur-sm select-none' : ''}`}>
                                     {stealth ? 'CLASSIFIED_TARGET' : selectedMed?.name}
                                 </span>
                             </p>                        </div>
                         <div className="bg-slate-50 p-4 rounded-2xl border-2 border-transparent focus-within:border-teal-400 transition-all mb-8">
-                            <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">空投数量 ({selectedMed?.unit})</span>
+                            <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">补充数量 ({selectedMed?.unit})</span>
                             <input type="number" autoFocus value={refillValue} onChange={(e) => setRefillValue(e.target.value)} className="w-full bg-transparent border-none outline-none text-2xl font-black text-slate-800" />
                         </div>
                         <div className="grid grid-cols-2 gap-3">
@@ -789,12 +955,51 @@ export default function MedicineGuide() {
                     <div className="relative bg-slate-900 rounded-[3rem] p-8 w-full max-w-md border-2 border-red-500/50 shadow-2xl">
                         <div className="text-center mb-8">
                             <div className="inline-block p-4 rounded-full bg-red-500/10 text-red-500 mb-4 animate-pulse"><History size={36} /></div>
-                            <h3 className="text-xl font-black italic text-white uppercase tracking-widest">时间线修正请求</h3>
+                            <h3 className="text-xl font-black italic text-white uppercase tracking-widest">用药记录补充</h3>
                             <p className="text-xs font-bold text-slate-400 mt-2">探测到 <span className="text-teal-400">{stealth ? '【机密目标】' : retroMed.name}</span> 严重超时。<br />您是刚刚执行了操作，还是为了补录错过的记录？</p>
                         </div>
                         <div className="flex flex-col gap-4">
-                            <button onClick={() => executeTakeMed(retroMed, new Date())} className="bg-slate-800 hover:bg-slate-700 text-white py-4 rounded-2xl font-black text-sm border border-slate-700">🕒 刚刚才吃 (按此刻时间记录)</button>
-                            <button onClick={confirmRetroactive} className="bg-red-500 hover:bg-red-600 text-white py-4 rounded-2xl font-black text-sm shadow-lg">⚡ 量子回溯 (自动补录到完美时间点)</button>
+                            <button onClick={() => executeTakeMed(retroMed, new Date())} className="bg-slate-800 hover:bg-slate-700 text-white py-4 rounded-2xl font-black text-sm border border-slate-700">🕒 刚刚用药 (按此刻时间记录)</button>
+                            <button onClick={confirmRetroactive} className="bg-red-500 hover:bg-red-600 text-white py-4 rounded-2xl font-black text-sm shadow-lg">⚡ 补录过往记录 (按原计划时间补齐)</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* ==================== 💛 温馨服药间隔提醒弹窗 ==================== */}
+            {cooldownMed && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm transition-opacity">
+                    <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl border border-slate-50 transform transition-all scale-100 text-center">
+
+                        {/* 顶部温和图标 */}
+                        <div className="inline-block p-4 rounded-full bg-orange-50 text-orange-500 mb-6">
+                            <Timer size={36} />
+                        </div>
+
+                        {/* 标题与正文 */}
+                        <h3 className="text-xl font-black text-slate-800 tracking-tight mb-3">服药间隔提醒</h3>
+                        <p className="text-xs font-bold text-slate-500 leading-relaxed mb-8">
+                            距离上次记录的时间较近，通常建议您再等等。
+                            <br /><br />
+                            如果您是遵医嘱调整用药，或正在补录漏记的数据，请点击「继续服药」。
+                        </p>
+
+                        {/* 柔性操作按钮 */}
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setCooldownMed(null)}
+                                className="flex-1 py-4 rounded-2xl font-black text-xs text-slate-500 bg-slate-50 hover:bg-slate-100 transition-all"
+                            >
+                                取消
+                            </button>
+                            <button
+                                onClick={() => {
+                                    executeTakeMed(cooldownMed, new Date());
+                                    setCooldownMed(null);
+                                }}
+                                className="flex-1 py-4 rounded-2xl font-black text-xs text-white bg-orange-400 hover:bg-orange-500 shadow-lg shadow-orange-500/20 transition-all"
+                            >
+                                继续服药
+                            </button>
                         </div>
                     </div>
                 </div>
