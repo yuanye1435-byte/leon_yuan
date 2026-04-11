@@ -70,6 +70,7 @@ export default function MedicineGuide() {
     const [stealth, setStealth] = useState(false);
     const [retroMed, setRetroMed] = useState<any>(null);
     const [cooldownMed, setCooldownMed] = useState<any>(null);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [toast, setToast] = useState<{ msg: string, show: boolean }>({ msg: '', show: false });
     const [nowTime, setNowTime] = useState(new Date());
     const [armedId, setArmedId] = useState<string | null>(null);
@@ -303,25 +304,23 @@ export default function MedicineGuide() {
         setMeds([]); setLogs([]);
     };
 
-    const handleDeleteAccount = async () => {
-        // 🛑 第一道保险栓：二次确认
-        const isConfirmed = window.confirm(
-            "⚠️ 警告：执行注销将永久抹除您的身份坐标、所有药品库存及历史作战日志！\n\n此操作不可逆。是否确认自毁？"
-        );
-        if (!isConfirmed) return;
+    // 1. 触发弹窗的函数 (绑在注销按钮上)
+    const handleDeleteAccount = () => {
+        setShowDeleteModal(true); // 唤醒咱们的高定弹窗
+    };
 
+    // 2. 真正执行清除的函数 (绑在弹窗的"确认清除"按钮上)
+    const executeDeleteAccount = async () => {
         try {
-            // 🚀 触发远端自毁程序
             const { error } = await supabase.rpc('delete_self_account');
-
             if (error) throw error;
 
-            // 🧹 清理本地战术大屏残影
             await supabase.auth.signOut();
             setSession(null);
             setMeds([]);
             setLogs([]);
-
+            setShowDeleteModal(false);
+            // 注销成功后回到登录页，这里留一个最基础的 alert 提示即可
             alert('身份已注销，坐标已抹除。欢迎下次重新接入。');
         } catch (error) {
             console.error('自毁程序执行失败:', error);
@@ -740,9 +739,15 @@ export default function MedicineGuide() {
                                         {new Date().getDate()}
                                     </span>
                                 </div>
-                                <div>
-                                    <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase flex items-center gap-3">今日用药概览 <span className={`text-[10px] px-2.5 py-1 rounded-full ${tacticalStats.defcon.bg} text-white font-black`}>{tacticalStats.defcon.status}</span></h2>
-                                    <p className="text-slate-400 text-[10px] font-black tracking-widest uppercase mt-1">Global Operations Dashboard</p>
+                                {/* 🌟 修复后：今日用药概览 标题区 (增加 flex-wrap 和 whitespace-nowrap) */}
+                                <div className="flex flex-col justify-center">
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        <h2 className="text-2xl font-black text-slate-800 tracking-tight whitespace-nowrap">今日用药概览</h2>
+                                        <span className={`text-[10px] px-3 py-1.5 rounded-full ${tacticalStats.defcon.bg} text-white font-black whitespace-nowrap shadow-sm`}>
+                                            {tacticalStats.defcon.status}
+                                        </span>
+                                    </div>
+                                    <p className="text-slate-400 text-[10px] font-black tracking-widest uppercase mt-1">Daily Health Dashboard</p>
                                 </div>
                             </div>
                             <div className="flex-1 w-full xl:w-auto bg-slate-50/50 rounded-2xl p-5 border border-slate-100 flex flex-col justify-center">
@@ -1029,6 +1034,42 @@ export default function MedicineGuide() {
                                 className="flex-1 py-4 rounded-2xl font-black text-xs text-white bg-orange-400 hover:bg-orange-500 shadow-lg shadow-orange-500/20 transition-all"
                             >
                                 继续服药
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* ==================== 🚨 高定版账号注销确认弹窗 ==================== */}
+            {showDeleteModal && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md transition-opacity">
+                    <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl border border-red-50 transform transition-all scale-100 text-center">
+
+                        {/* 顶部危险图标 */}
+                        <div className="inline-block p-4 rounded-full bg-red-50 text-red-500 mb-6">
+                            <UserX size={36} />
+                        </div>
+
+                        {/* 标题与正文 (医疗关怀向文案修正) */}
+                        <h3 className="text-xl font-black text-slate-800 tracking-tight mb-3">确认注销账号？</h3>
+                        <p className="text-xs font-bold text-slate-500 leading-relaxed mb-8 px-2">
+                            执行注销将永久抹除您的身份信息、所有药品库存及历史用药记录。
+                            <br /><br />
+                            <span className="text-red-500 font-black">此操作不可逆，请谨慎决定。</span>
+                        </p>
+
+                        {/* 柔性操作按钮 */}
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowDeleteModal(false)}
+                                className="flex-1 py-4 rounded-2xl font-black text-xs text-slate-500 bg-slate-50 hover:bg-slate-100 transition-all"
+                            >
+                                暂不注销
+                            </button>
+                            <button
+                                onClick={executeDeleteAccount}
+                                className="flex-1 py-4 rounded-2xl font-black text-xs text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/30 transition-all"
+                            >
+                                确认清除
                             </button>
                         </div>
                     </div>
