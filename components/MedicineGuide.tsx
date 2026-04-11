@@ -92,15 +92,21 @@ const DraggableMedCard: React.FC<DraggableMedCardProps> = ({
 
                             <div>
                                 <div className="flex items-center gap-2">
-                                    <h3 className={`text-2xl font-black transition-all ${isCompleted && !med.is_pinned ? 'text-slate-300' : 'text-slate-800'} ${stealth ? 'blur-md select-none' : ''}`}>
+                                    {/* 药名：改用 transition-colors 减轻渲染压力 */}
+                                    <h3 className={`text-2xl font-black transition-colors duration-300 ${isCompleted && !med.is_pinned ? 'text-slate-300' : 'text-slate-800'} ${stealth ? 'blur-md select-none' : ''}`}>
                                         {stealth ? '••••••••' : med.name}
                                     </h3>
-                                    {/* 💡 状态指示灯：即使抽屉合上，也能从名字旁边看到卡片的选中状态 */}
-                                    {isSelected ? (
-                                        <CheckCircle2 size={18} className="text-teal-500 shadow-sm rounded-full" />
-                                    ) : (
-                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-200 animate-pulse" title="向左滑动解锁选项"></div>
-                                    )}
+
+                                    {/* 💡 电竞级状态指示灯：固定 20px 物理占位，杜绝重绘风暴 */}
+                                    <div className="relative w-5 h-5 flex items-center justify-center shrink-0">
+                                        {/* 未选中：脉冲小圆点 (平滑缩小隐形) */}
+                                        <div className={`absolute w-1.5 h-1.5 rounded-full bg-slate-300 transition-all duration-300 ease-out will-change-transform ${isSelected ? 'opacity-0 scale-50' : 'opacity-100 scale-100 animate-pulse'
+                                            }`}></div>
+
+                                        {/* 选中：绿勾徽章 (带有弹簧质感的放大浮现) */}
+                                        <CheckCircle2 size={18} className={`absolute text-teal-500 shadow-sm rounded-full transition-all duration-300 ease-out will-change-transform ${isSelected ? 'opacity-100 scale-100' : 'opacity-0 scale-50'
+                                            }`} />
+                                    </div>
                                 </div>
                                 {!stealth && med.times_per_day > 0 && (
                                     <div className="mt-2">
