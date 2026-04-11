@@ -4,11 +4,138 @@
 import { useRouter } from 'next/navigation';
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from './supabaseClient';
-import { Trash2, Activity, CheckCircle2, Clock, Target, ShoppingCart, Flame, BarChart3, HeartPulse, LogOut, KeyRound, User, ShieldCheck, Radar, PackagePlus, Download, Timer, Eye, EyeOff, History, UserX } from 'lucide-react';
+import { Reorder, useDragControls } from 'framer-motion';
+// import { Trash2, Activity, CheckCircle2, Clock, Target, ShoppingCart, Flame, BarChart3, HeartPulse, LogOut, KeyRound, User, ShieldCheck, Radar, PackagePlus, Download, Timer, Eye, EyeOff, History, UserX, Pin } from 'lucide-react';
+import { Trash2, Activity, CheckCircle2, Clock, Target, ShoppingCart, Flame, BarChart3, HeartPulse, LogOut, KeyRound, User, ShieldCheck, Radar, PackagePlus, Download, Timer, Eye, EyeOff, History, UserX, Menu, Pin } from 'lucide-react';
 import PinyinMatch from 'pinyin-match'; // 🚀 新增：挂载拼音匹配引擎
 // 🚀 从外部武备库挂载模块
 import { CONFLICT_MATRIX, MEDICINE_DB } from '../constants/tacticalData';
 import { playSciFiSound, speakTacticalVoice } from '../utils/audioEngine';
+
+
+// 🚀 独立的可拖拽药品卡片组件
+// 🚀 1. 定义战术参数规格书 (TypeScript Interface)
+interface DraggableMedCardProps {
+    med: any;
+    stealth: boolean;
+    isSelected: boolean;
+    todayCount: number;
+    isCompleted: boolean;
+    radar: any;
+    isLowAmmo: boolean;
+    toggleSelection: (id: string) => void;
+    openRefillModal: (med: any) => void;
+    handleDeleteClick: (id: string) => void;
+    armedId: string | null;
+    handleTakeMedClick: (med: any) => void;
+}
+
+// 🚀 2. 带有类型约束的药品卡片组件 (FC 表示 Function Component)
+const DraggableMedCard: React.FC<DraggableMedCardProps> = ({
+    med,
+    stealth,
+    isSelected,
+    todayCount,
+    isCompleted,
+    radar,
+    isLowAmmo,
+    toggleSelection,
+    openRefillModal,
+    handleDeleteClick,
+    armedId,
+    handleTakeMedClick
+}) => {
+    const dragControls = useDragControls();
+
+    return (
+        <Reorder.Item
+            value={med}
+            id={med.id}
+            dragListener={false}
+            dragControls={dragControls}
+            whileDrag={{ scale: 1.02, boxShadow: "0px 20px 30px rgba(0,0,0,0.1)", zIndex: 50 }}
+            className={`p-6 rounded-[2rem] border-2 transition-all bg-white relative mb-4 ${med.is_pinned ? 'border-teal-300 shadow-[0_0_15px_rgba(20,184,166,0.1)]' : 'border-slate-100 hover:border-teal-200'}`}
+        >
+            {/* 📌 战术图钉标识 */}
+            {med.is_pinned && (
+                <div className="absolute -top-3 -right-3 w-8 h-8 bg-teal-500 rounded-full flex items-center justify-center shadow-lg border-2 border-white z-10 text-white transform rotate-12">
+                    <Pin size={16} className="fill-current" />
+                </div>
+            )}
+
+            <div className="flex justify-between items-start mb-6">
+                <div className="flex items-center gap-2">
+                    {/* 🖐️ 三条杠无边界拖拽手柄 (搭载防误触装甲) */}
+                    <div
+                        className="p-2 -ml-4 cursor-grab active:cursor-grabbing text-slate-300 hover:text-teal-500 transition-all touch-none select-none"
+                        onPointerDown={(e) => {
+                            e.preventDefault(); // 🛑 核心拦截：直接切断浏览器的“文字框选”本能
+                            dragControls.start(e); // 然后再把控制权交给物理引擎
+                        }}
+                    >
+                        <Menu size={20} />
+                    </div>
+
+                    {/* 🎯 兼容态多选框 */}
+                    <button
+                        onClick={() => toggleSelection(med.id)}
+                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-teal-500 border-teal-500 shadow-[0_0_12px_rgba(20,184,166,0.5)]' : isCompleted ? 'bg-slate-50 border-slate-200' : 'border-slate-300 hover:border-teal-400'}`}
+                    >
+                        {isSelected && <CheckCircle2 size={16} className="text-white" />}
+                        {!isSelected && isCompleted && <CheckCircle2 size={16} className="text-slate-300" />}
+                    </button>
+
+                    <div>
+                        <h3 className={`text-2xl font-black transition-all ${isCompleted && !med.is_pinned ? 'text-slate-300' : 'text-slate-800'} ${stealth ? 'blur-md select-none' : ''}`}>
+                            {stealth ? '••••••••' : med.name}
+                        </h3>
+                        {!stealth && med.times_per_day > 0 && (
+                            <div className="mt-2">
+                                <span className="text-[10px] font-black text-slate-400 uppercase">进度 {todayCount}/{med.times_per_day}</span>
+                                <div className="flex gap-1.5 w-40 mt-1">
+                                    {Array.from({ length: med.times_per_day }).map((_, i) => (
+                                        <div key={i} className={`h-1.5 flex-1 rounded-sm ${i < todayCount ? 'bg-teal-500 shadow-[0_0_5px_rgba(20,184,166,0.6)]' : 'bg-slate-100'}`} />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+                <div className="flex flex-col gap-2 w-24">
+                    <button onClick={() => openRefillModal(med)} className={`p-2 rounded-2xl border flex items-center justify-center gap-2 ${isLowAmmo ? 'bg-red-50 text-red-500 border-red-200 animate-pulse' : 'bg-slate-50 text-slate-300 border-slate-100'}`}>
+                        <PackagePlus size={18} /> {isLowAmmo && <span className="text-[9px] font-black">补药</span>}
+                    </button>
+                    <button onClick={() => handleDeleteClick(med.id)} className={`p-2 rounded-2xl flex items-center justify-center gap-2 ${armedId === med.id ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-50 text-slate-300 hover:text-red-500 border border-slate-100'}`}>
+                        <Trash2 size={18} /> {armedId === med.id && <span className="text-[9px] font-black">确认?</span>}
+                    </button>
+                </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-4 border-t pt-4">
+                <div className="flex gap-6">
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black text-slate-400 uppercase">余量</span>
+                        <div className={`px-3 py-1 rounded-full border text-xs font-black ${isLowAmmo ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-700 border-slate-100'}`}>{med.stock_amount} {med.unit}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black text-slate-400 uppercase">雷达</span>
+                        <div className={`px-3 py-1 rounded-full border text-[10px] font-black flex items-center gap-1.5 ${radar.bg} ${radar.color}`}>
+                            <Timer size={12} /> {radar.text}
+                        </div>
+                    </div>
+                </div>
+                {!isCompleted ? (
+                    <button onClick={() => handleTakeMedClick(med)} className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase transition-all shadow-md ${radar.allow ? 'bg-slate-900 text-white hover:bg-teal-500' : 'bg-orange-500 text-white hover:bg-orange-600'}`}>
+                        确认用药 {med.dose_per_time}{med.unit}
+                    </button>
+                ) : (
+                    <div className="px-6 py-3 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100 font-black text-[10px] flex items-center gap-2">
+                        <ShieldCheck size={14} /> 今日已达标
+                    </div>
+                )}
+            </div>
+        </Reorder.Item>
+    );
+};
 
 // --- 🛠️ 主机甲核心：MedicineGuide ---
 export default function MedicineGuide() {
@@ -194,11 +321,13 @@ export default function MedicineGuide() {
         if (!session?.user?.id) return;
 
         // 🎯 精准定向扫描：只拉取 user_id 等于当前登录账号的数据
+        // 🛠️ 修改后的 fetchData 片段
         const { data: m } = await supabase
             .from('medicines')
             .select('*')
             .eq('user_id', session.user.id)
-            .order('expired_at', { ascending: true });
+            // 🎯 核心改变：按自定义排序坐标从小到大排列
+            .order('sort_order', { ascending: true });
 
         const { data: l } = await supabase
             .from('medicine_logs')
@@ -209,6 +338,22 @@ export default function MedicineGuide() {
 
         setMeds(m || []);
         setLogs(l || []);
+
+    };
+
+    // 🧠 拖拽排序同步神经
+    const handleReorder = async (newOrder: any[], isPinnedGroup: boolean) => {
+        // 1. 瞬间更新本地 UI，保证物理动画丝滑不断层
+        setMeds(prev => {
+            const others = prev.filter(m => !!m.is_pinned !== isPinnedGroup);
+            return [...others, ...newOrder];
+        });
+
+        // 2. 后台静默同步给数据库
+        const promises = newOrder.map((med, index) =>
+            supabase.from('medicines').update({ sort_order: index }).eq('id', med.id)
+        );
+        await Promise.all(promises);
     };
 
     const unlockAudio = () => {
@@ -232,6 +377,26 @@ export default function MedicineGuide() {
         const targets = meds.filter(m => selectedIds.includes(m.id) && getTodayProgress(m.id) < m.times_per_day);
         if (targets.length === 0) return alert('🛡️ 统帅，名单中没有可执行的目标！');
         setShowFireModal(true);
+    };
+
+    const togglePinSelected = async () => {
+        if (selectedIds.length === 0) return;
+        // 逻辑：如果选中的全都是已置顶的，就取消置顶；否则统统置顶
+        const selectedMeds = meds.filter(m => selectedIds.includes(m.id));
+        const willPin = !selectedMeds.every(m => m.is_pinned);
+
+        try {
+            const promises = selectedMeds.map(med =>
+                supabase.from('medicines').update({ is_pinned: willPin }).eq('id', med.id)
+            );
+            await Promise.all(promises);
+            setSelectedIds([]); // 操作完清空选中状态
+            fetchData();
+            playSciFiSound('success');
+            showTacticalToast(`已${willPin ? '置顶' : '取消置顶'} ${selectedMeds.length} 个目标。`);
+        } catch (error) {
+            alert('💥 核心数据库拦截了请求，置顶失败！');
+        }
     };
 
     const executeSalvo = async () => {
@@ -515,6 +680,15 @@ export default function MedicineGuide() {
         );
     }
 
+    // 🚀 将数据严格分为“置顶区”和“常规区”，并按记录好的 sort_order 排序
+    const pinnedMeds = meds
+        .filter(m => m.is_pinned)
+        .sort((a, b) => a.sort_order - b.sort_order);
+
+    const unpinnedMeds = meds
+        .filter(m => !m.is_pinned)
+        .sort((a, b) => a.sort_order - b.sort_order);
+
     // 6. 🚀 【主界面渲染】
     return (
         <div className="max-w-6xl mx-auto my-6 p-4 md:p-8 bg-[#f1f5f9] min-h-screen rounded-[2.5rem] shadow-2xl font-sans relative">
@@ -547,134 +721,161 @@ export default function MedicineGuide() {
             </div>
 
             {/* 仪表盘统计：三位一体全景雷达 */}
-            <div className="mb-10 grid grid-cols-1 md:grid-cols-3 gap-6">
-
-                {/* 📊 卡片 1：战区歼灭率 (已保留防窥装甲) */}
-                <TiltCard className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50 flex flex-col justify-between min-h-[160px] relative overflow-hidden transition-all hover:border-teal-100 hover:shadow-lg">
-                    <div className="absolute -right-8 -top-8 w-32 h-32 bg-teal-50 rounded-full opacity-60 pointer-events-none z-0"></div>
-                    <div className="flex items-center gap-2 text-slate-500 relative z-10">
-                        <span className="text-teal-400 text-base">🎯</span>
-                        <span className="text-[11px] font-black tracking-widest uppercase text-slate-400">今日用药达成率</span>
+            <div className="mb-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6">
+                {/* 📊 卡片 1：战区歼灭率 (高定丰满版) */}
+                <TiltCard className="md:col-span-1 lg:col-span-3 bg-white rounded-[2rem] p-6 md:p-8 shadow-sm border border-slate-50 flex flex-col justify-between min-h-[240px] relative overflow-hidden transition-all hover:border-teal-100 hover:shadow-lg group">
+                    {/* 🌟 巨型全息负空间水印 */}
+                    <div className="absolute -right-10 -bottom-10 opacity-[0.03] pointer-events-none transition-transform duration-700 group-hover:scale-110 group-hover:opacity-[0.05]">
+                        <Target size={240} className="text-teal-500" />
                     </div>
-                    <div className="mt-4 relative z-10 flex flex-col gap-1">
+
+                    <div className="flex items-center gap-2 text-slate-500 relative z-10">
+                        <span className="text-teal-400 text-xl">🎯</span>
+                        <span className="text-xs font-black tracking-widest uppercase text-slate-400">今日达成率</span>
+                    </div>
+
+                    <div className="mt-auto relative z-10 flex flex-col gap-3 pt-6">
                         <div className="flex items-baseline gap-1">
-                            <span className={`text-6xl font-black text-teal-400 italic tracking-tighter transition-all ${stealth ? 'blur-lg select-none' : ''}`}>
+                            <span className={`text-7xl xl:text-8xl font-black text-teal-400 italic tracking-tighter drop-shadow-sm transition-all ${stealth ? 'blur-lg select-none' : ''}`}>
                                 {stealth ? '88' : tacticalStats.hitRate}
                             </span>
-                            <span className="text-2xl font-black text-teal-400 opacity-80">%</span>
+                            <span className="text-3xl font-black text-teal-400 opacity-80">%</span>
                         </div>
-                        <div className="text-[10px] font-bold text-slate-400 tracking-tight">
-                            已服用 {tacticalStats.destroyedTargets} / 计划 {tacticalStats.totalTargets} 次
-                        </div>
-                    </div>
-                </TiltCard>
-
-                {/* 🔥 卡片 2：战术连胜记录 (已保留防窥装甲) */}
-                <TiltCard className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50 flex flex-col justify-between min-h-[160px] transition-all hover:border-orange-100 hover:shadow-lg">
-                    <div className="flex items-center gap-2 text-slate-500">
-                        <span className="text-orange-400 text-base">🔥</span>
-                        <span className="text-[11px] font-black tracking-widest uppercase text-slate-400">健康打卡连胜</span>
-                    </div>
-                    <div className="mt-4 flex flex-col gap-1">
-                        <div className="flex items-baseline gap-2">
-                            <span className={`text-6xl font-black text-slate-800 italic tracking-tighter transition-all ${stealth ? 'blur-lg select-none' : ''}`}>
-                                {stealth ? '8' : currentStreak}
-                            </span>
-                            <span className="text-sm font-black text-slate-400 uppercase tracking-widest">Days</span>
-                        </div>
-                        <div className="text-[10px] font-bold text-orange-400/80 tracking-tight">
-                            {currentStreak > 0 ? "请保持当前节奏，您离健康又近了一步！" : "健康需要坚持，明天也要记得按时用药哦"}
-                        </div>
-                    </div>
-                </TiltCard>
-
-                {/* 📈 卡片 3：当月服药热力追踪 (北京时间锁死版) */}
-                <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50 flex flex-col justify-between min-h-[160px] transition-all hover:border-indigo-100 hover:shadow-lg">
-
-                    {/* 标题与图例 */}
-                    <TiltCard className="flex flex-col gap-3 mb-4">
-                        <div className="flex items-center justify-between text-slate-500">
-                            <div className="flex items-center gap-2">
-                                <span className="text-indigo-400 text-base">📅</span>
-                                <span className="text-[11px] font-black tracking-widest uppercase text-slate-400">本月热力追踪</span>
+                        {/* 📊 底部增加实体进度条，压住视觉重心 */}
+                        <div className="flex flex-col gap-2 w-full pr-4">
+                            <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-teal-400 shadow-[0_0_8px_rgba(45,212,191,0.5)] transition-all duration-1000 ease-out"
+                                    style={{ width: `${stealth ? 88 : tacticalStats.hitRate}%` }}
+                                />
+                            </div>
+                            <div className="text-[10px] font-bold text-slate-400 tracking-tight">
+                                已服用 {tacticalStats.destroyedTargets} / 计划 {tacticalStats.totalTargets} 次
                             </div>
                         </div>
-                        {/* 🏷️ 新增图例区 */}
-                        <div className="flex flex-wrap gap-2 text-[9px] font-bold text-slate-400">
-                            <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>全量用药</div>
-                            <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-amber-400"></div>少量漏用</div>
-                            <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-red-400"></div>严重异常</div>
-                            <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-slate-200"></div>未开始/无效</div>
+                    </div>
+                </TiltCard>
+
+                {/* 🔥 卡片 2：战术连胜记录 (高定丰满版) */}
+                <TiltCard className="md:col-span-1 lg:col-span-3 bg-white rounded-[2rem] p-6 md:p-8 shadow-sm border border-slate-50 flex flex-col justify-between min-h-[240px] relative overflow-hidden transition-all hover:border-orange-100 hover:shadow-lg group">
+                    {/* 🌟 巨型全息负空间水印 */}
+                    <div className="absolute -right-6 -bottom-6 opacity-[0.03] pointer-events-none transition-transform duration-700 group-hover:scale-110 group-hover:opacity-[0.05]">
+                        <Flame size={240} className="text-orange-500" />
+                    </div>
+
+                    <div className="flex items-center gap-2 text-slate-500 relative z-10">
+                        <span className="text-orange-400 text-xl">🔥</span>
+                        <span className="text-xs font-black tracking-widest uppercase text-slate-400">健康连胜</span>
+                    </div>
+
+                    <div className="mt-auto relative z-10 flex flex-col gap-3 pt-6">
+                        <div className="flex items-baseline gap-2">
+                            <span className={`text-7xl xl:text-8xl font-black text-slate-800 italic tracking-tighter drop-shadow-sm transition-all ${stealth ? 'blur-lg select-none' : ''}`}>
+                                {stealth ? '8' : currentStreak}
+                            </span>
+                            <span className="text-lg font-black text-slate-400 uppercase tracking-widest">Days</span>
+                        </div>
+                        {/* 🔥 底部增加连胜阵列灯，压住视觉重心 */}
+                        <div className="flex flex-col gap-2 w-full pr-4">
+                            <div className="flex gap-1.5 h-1.5">
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                    <div
+                                        key={i}
+                                        className={`flex-1 rounded-full transition-all duration-500 ${i < Math.min(currentStreak, 5) ? 'bg-orange-400 shadow-[0_0_6px_rgba(251,146,60,0.5)]' : 'bg-slate-100'}`}
+                                    />
+                                ))}
+                            </div>
+                            <div className="text-[10px] font-bold text-orange-400/80 tracking-tight">
+                                {currentStreak > 0 ? "保持节奏，离健康更近一步！" : "健康需坚持，明天记得打卡哦"}
+                            </div>
+                        </div>
+                    </div>
+                </TiltCard>
+                {/* 📈 卡片 3：当月服药热力追踪 (适老化清晰版) */}
+                <div className="md:col-span-2 lg:col-span-6 bg-white rounded-[2rem] p-6 md:p-8 shadow-sm border border-slate-50 flex flex-col justify-between min-h-[160px] transition-all hover:border-indigo-100 hover:shadow-lg">
+
+                    {/* 标题与图例 */}
+                    <TiltCard className="flex flex-col gap-4 mb-6">
+                        <div className="flex items-center justify-between text-slate-500">
+                            <div className="flex items-center gap-2">
+                                <span className="text-indigo-400 text-lg">📅</span>
+                                <span className="text-xs font-black tracking-widest uppercase text-slate-500">本月热力追踪</span>
+                            </div>
+                        </div>
+                        {/* 🏷️ 图例放大版：间距拉开，圆点加大 */}
+                        <div className="flex flex-wrap gap-3 text-[11px] md:text-xs font-bold text-slate-500">
+                            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-emerald-400 shadow-sm"></div>全量用药</div>
+                            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-amber-400 shadow-sm"></div>少量漏用</div>
+                            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-red-400 shadow-sm"></div>严重异常</div>
+                            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-slate-200 shadow-sm"></div>未开始/无效</div>
                         </div>
                     </TiltCard>
 
                     {/* 月历矩阵 */}
                     <div className="flex-1 flex items-center justify-center w-full relative z-10">
-                        {/* 采用 7 列网格，完美契合一周 */}
-                        <div className="grid grid-cols-7 gap-1.5 w-full">
+                        {/* 间隔调大 (gap-2)，防止胖手指误触 */}
+                        <div className="grid grid-cols-7 gap-2 md:gap-3 w-full">
                             {(() => {
-                                // ⌚ 核心：强行焊死北京时间！不管浏览器在哪，只认东八区
                                 const bjNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Shanghai" }));
                                 const year = bjNow.getFullYear();
                                 const month = bjNow.getMonth();
                                 const todayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(bjNow.getDate()).padStart(2, '0')}`;
-
-                                // 获取本月总天数
                                 const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-                                // 侦测“入坑时间”：找到日志里的第一条，它之前的全算作废（灰掉或打叉）
                                 const firstLogDate = logs.length > 0 ? logs[logs.length - 1].taken_at.split('T')[0] : todayStr;
 
                                 return Array.from({ length: daysInMonth }).map((_, i) => {
                                     const day = i + 1;
                                     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-                                    // --- 1. 真实数据状态推演 ---
-                                    let status = 'future'; // 默认未来（还没到的日子）
-
-                                    if (dateStr > todayStr) {
-                                        status = 'future';
-                                    } else if (dateStr < firstLogDate) {
-                                        status = 'grey'; // 还没开始用的日子，直接作废
-                                    } else {
-                                        // 算今天的真实数据
+                                    let status = 'future';
+                                    if (dateStr > todayStr) status = 'future';
+                                    else if (dateStr < firstLogDate) status = 'grey';
+                                    else {
                                         const dayLogs = logs.filter(log => log.taken_at.startsWith(dateStr));
-                                        if (dayLogs.length === 0) {
-                                            status = dateStr === todayStr ? 'grey' : 'red'; // 今天没吃先灰着，昨天没吃算严重漏服(红)
-                                        } else if (dayLogs.length >= meds.length) {
-                                            status = 'green'; // 达标
-                                        } else {
-                                            status = 'yellow'; // 吃了一部分
-                                        }
+                                        if (dayLogs.length === 0) status = dateStr === todayStr ? 'grey' : 'red';
+                                        else if (dayLogs.length >= meds.length) status = 'green';
+                                        else status = 'yellow';
                                     }
 
-                                    // --- 2. ⚡ 上帝模式接管 ---
-                                    // 如果你手动点过这个点，直接用你点的颜色覆盖真实数据！
                                     const finalStatus = dotOverrides[dateStr] || status;
 
-                                    // --- 3. 渲染样式 ---
-                                    let dotColor = 'bg-slate-100/50'; // 未来的日子若隐若现
+                                    // 🎨 状态样式映射 (全面放大)
+                                    let dotColor = 'bg-slate-100/50';
                                     let glow = '';
                                     let textStyle = 'text-slate-400 font-bold';
 
-                                    if (finalStatus === 'green') { dotColor = 'bg-emerald-400'; glow = 'shadow-[0_0_8px_rgba(52,211,153,0.5)] scale-125'; }
-                                    else if (finalStatus === 'yellow') { dotColor = 'bg-amber-400'; glow = 'shadow-[0_0_8px_rgba(251,191,36,0.5)]'; textStyle = 'text-amber-700'; }
-                                    else if (finalStatus === 'red') { dotColor = 'bg-red-400'; glow = 'shadow-[0_0_8px_rgba(248,113,113,0.5)]'; textStyle = 'text-red-700 font-black'; }
-                                    else if (finalStatus === 'grey') { dotColor = 'bg-slate-200'; textStyle = 'line-through text-slate-300'; } // 作废的日子加删除线
+                                    if (finalStatus === 'green') {
+                                        dotColor = 'bg-emerald-400';
+                                        glow = 'shadow-[0_0_8px_rgba(52,211,153,0.5)] scale-110';
+                                        textStyle = 'text-emerald-700 font-black';
+                                    } else if (finalStatus === 'yellow') {
+                                        dotColor = 'bg-amber-400';
+                                        glow = 'shadow-[0_0_8px_rgba(251,191,36,0.5)]';
+                                        textStyle = 'text-amber-700 font-black';
+                                    } else if (finalStatus === 'red') {
+                                        dotColor = 'bg-red-400';
+                                        glow = 'shadow-[0_0_8px_rgba(248,113,113,0.5)]';
+                                        textStyle = 'text-red-700 font-black';
+                                    } else if (finalStatus === 'grey') {
+                                        dotColor = 'bg-slate-200';
+                                        textStyle = 'text-slate-300 line-through';
+                                    }
 
                                     return (
                                         <div
                                             key={day}
-                                            title={`${dateStr} (点击开启上帝模式修改状态)`}
+                                            title={`${dateStr} (点击修改状态)`}
                                             onClick={() => handleDotClick(dateStr)}
-                                            className="aspect-square rounded flex items-center justify-center cursor-pointer transition-all hover:bg-slate-50 border border-transparent hover:border-slate-200 group relative"
+                                            // 🚀 核心修改：改为带实体背景的微型卡片，上下排列，增大触控区
+                                            className="aspect-square rounded-xl md:rounded-2xl flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-all hover:bg-slate-50 border border-slate-100 hover:border-teal-200 group relative bg-white shadow-sm hover:shadow-md"
                                         >
-                                            {/* 背景数字 */}
-                                            <span className={`absolute text-[9px] z-0 opacity-50 group-hover:opacity-10 transition-all ${textStyle}`}>
+                                            {/* 顶部指示灯 */}
+                                            <div className={`w-3 h-3 md:w-3.5 md:h-3.5 rounded-full z-10 transition-all duration-300 ${dotColor} ${glow}`} />
+
+                                            {/* 底部高清晰数字 */}
+                                            <span className={`text-[11px] md:text-sm z-0 transition-all leading-none ${textStyle}`}>
                                                 {day}
                                             </span>
-                                            {/* 前景圆点 */}
-                                            <div className={`w-1.5 h-1.5 rounded-full z-10 transition-all duration-300 ${dotColor} ${glow} group-hover:opacity-80`} />
                                         </div>
                                     );
                                 });
@@ -876,12 +1077,20 @@ export default function MedicineGuide() {
                                 </div>
                             </div>
                             <div className="shrink-0 w-full xl:w-auto flex flex-col items-end gap-2">
-                                <div className="flex justify-between w-full px-1 gap-4">
+                                <div className="flex justify-between items-center w-full px-1 gap-2">
                                     <div className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2">
                                         <div className={`w-2 h-2 rounded-full ${selectedIds.length > 0 ? 'bg-teal-500 animate-pulse' : 'bg-slate-300'}`} />
                                         Locked: {selectedIds.length}
                                     </div>
-                                    <button onClick={toggleSelectAll} className="text-[9px] font-black uppercase px-2 py-1 rounded-md border border-slate-200 text-slate-400 hover:text-teal-600 transition-all">{selectedIds.length > 0 ? '取消全选' : '全选当前可服用药物'}</button>
+                                    <div className="flex gap-2">
+                                        {/* 📌 新增：置顶/取消按钮 */}
+                                        <button onClick={togglePinSelected} disabled={selectedIds.length === 0} className={`text-[9px] font-black uppercase px-3 py-1 rounded-md border transition-all ${selectedIds.length > 0 ? 'border-teal-400 text-teal-600 hover:bg-teal-50 shadow-sm' : 'border-slate-200 text-slate-300'}`}>
+                                            置顶/取消
+                                        </button>
+                                        <button onClick={toggleSelectAll} className="text-[9px] font-black uppercase px-2 py-1 rounded-md border border-slate-200 text-slate-400 hover:text-teal-600 transition-all">
+                                            {selectedIds.length > 0 ? '取消全选' : '全选待服'}
+                                        </button>
+                                    </div>
                                 </div>
                                 <button onClick={handleSalvoFire} disabled={selectedIds.length === 0} className={`w-full xl:w-auto px-8 py-4 rounded-2xl font-black text-sm uppercase transition-all flex items-center justify-center gap-2 ${selectedIds.length > 0 ? 'bg-teal-500 text-white shadow-lg hover:bg-teal-400 cursor-pointer' : 'bg-slate-100 text-slate-300 cursor-not-allowed'}`}>
                                     <CheckCircle2 size={20} /> 一键全阵列齐射
@@ -891,76 +1100,65 @@ export default function MedicineGuide() {
                     </div>
 
                     {/* 药品列表 */}
-                    {meds.map((med) => {
-                        const todayCount = getTodayProgress(med.id);
-                        const isSelected = selectedIds.includes(med.id);
-                        const isCompleted = todayCount >= med.times_per_day;
-                        const radar = getRadarInfo(med.last_taken_at, med.times_per_day);
-                        const isLowAmmo = (med.times_per_day > 0) && (med.stock_amount / (med.times_per_day * med.dose_per_time) <= 3);
+                    {/* 药品列表 (自带置顶排序算法) */}
+                    {/* 🧲 药品列表：双轨重力排序引擎 (替换你发我的那一整块) */}
+                    {/* 🧲 药品列表：双轨重力排序引擎 (替换 1085-1141 行) */}
+                    {(() => {
+                        // 1. 逻辑分流：将数据严格分为“置顶区”和“常规区”，并按 sort_order 物理坐标排序
+                        const pinnedMeds = meds
+                            .filter(m => m.is_pinned)
+                            .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+
+                        const unpinnedMeds = meds
+                            .filter(m => !m.is_pinned)
+                            .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
 
                         return (
-                            <div key={med.id} className="p-6 rounded-[2rem] border-2 transition-all bg-white border-slate-100 hover:border-teal-200">
-                                <div className="flex justify-between items-start mb-6">
-                                    <div className="flex items-center gap-4">
-                                        {!isCompleted ? (
-                                            <button onClick={() => toggleSelection(med.id)} className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-teal-500 border-teal-500 shadow-[0_0_12px_rgba(20,184,166,0.5)]' : 'border-slate-300 hover:border-teal-400'}`}>
-                                                {isSelected && <CheckCircle2 size={16} className="text-white" />}
-                                            </button>
-                                        ) : (
-                                            <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200"><CheckCircle2 size={16} /></div>
-                                        )}
-                                        <div>
-                                            {/* 找到 meds.map 里的 h3 标签 */}
-                                            <h3 className={`text-2xl font-black transition-all ${isCompleted ? 'text-slate-300' : 'text-slate-800'
-                                                } ${stealth ? 'blur-md select-none' : ''}`}>
-                                                {stealth ? '••••••••' : med.name}
-                                            </h3>                                 {!stealth && med.times_per_day > 0 && (
-                                                <div className="mt-2">
-                                                    <span className="text-[10px] font-black text-slate-400 uppercase">进度 {todayCount}/{med.times_per_day}</span>
-                                                    <div className="flex gap-1.5 w-40 mt-1">
-                                                        {Array.from({ length: med.times_per_day }).map((_, i) => (
-                                                            <div key={i} className={`h-1.5 flex-1 rounded-sm ${i < todayCount ? 'bg-teal-500 shadow-[0_0_5px_rgba(20,184,166,0.6)]' : 'bg-slate-100'}`} />
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col gap-2 w-24">
-                                        <button onClick={() => openRefillModal(med)} className={`p-2 rounded-2xl border flex items-center justify-center gap-2 ${isLowAmmo ? 'bg-red-50 text-red-500 border-red-200 animate-pulse' : 'bg-slate-50 text-slate-300 border-slate-100'}`}>
-                                            <PackagePlus size={18} /> {isLowAmmo && <span className="text-[9px] font-black">补药</span>}
-                                        </button>
-                                        <button onClick={() => handleDeleteClick(med.id)} className={`p-2 rounded-2xl flex items-center justify-center gap-2 ${armedId === med.id ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-50 text-slate-300 hover:text-red-500 border border-slate-100'}`}>
-                                            <Trash2 size={18} /> {armedId === med.id && <span className="text-[9px] font-black">确认?</span>}
-                                        </button>
-                                    </div>
-                                </div>
-                                {/* 增加 flex-wrap 防止挤压，增加 gap-4 拉开按钮间距 */}
-                                <div className="flex flex-wrap items-center justify-between gap-4 border-t pt-4"><div className="flex gap-6">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[10px] font-black text-slate-400 uppercase">余量</span>
-                                        <div className={`px-3 py-1 rounded-full border text-xs font-black ${isLowAmmo ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-700 border-slate-100'}`}>{med.stock_amount} {med.unit}</div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[10px] font-black text-slate-400 uppercase">雷达</span>
-                                        <div className={`px-3 py-1 rounded-full border text-[10px] font-black flex items-center gap-1.5 ${radar.bg} ${radar.color}`}>
-                                            <Timer size={12} /> {radar.text}
-                                        </div>
-                                    </div>
-                                </div>
-                                    {!isCompleted ? (
-                                        <button onClick={() => handleTakeMedClick(med)} className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase transition-all shadow-md ${radar.allow ? 'bg-slate-900 text-white hover:bg-teal-500' : 'bg-orange-500 text-white hover:bg-orange-600'}`}>
-                                            确认用药 {med.dose_per_time}{med.unit}
-                                        </button>
-                                    ) : (
-                                        <div className="px-6 py-3 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100 font-black text-[10px] flex items-center gap-2">
-                                            <ShieldCheck size={14} /> 今日已达标
-                                        </div>
-                                    )}
-                                </div>
+                            <div className="flex flex-col gap-2">
+                                {/* 轨道 A：置顶专属重力场 */}
+                                <Reorder.Group axis="y" values={pinnedMeds} onReorder={(newOrder) => handleReorder(newOrder, true)}>
+                                    {pinnedMeds.map(med => (
+                                        <DraggableMedCard
+                                            key={med.id}
+                                            med={med}
+                                            stealth={stealth}
+                                            isSelected={selectedIds.includes(med.id)}
+                                            todayCount={getTodayProgress(med.id)}
+                                            isCompleted={getTodayProgress(med.id) >= med.times_per_day}
+                                            radar={getRadarInfo(med.last_taken_at, med.times_per_day)}
+                                            isLowAmmo={(med.times_per_day > 0) && (med.stock_amount / (med.times_per_day * med.dose_per_time) <= 3)}
+                                            toggleSelection={toggleSelection}
+                                            openRefillModal={openRefillModal}
+                                            handleDeleteClick={handleDeleteClick}
+                                            armedId={armedId}
+                                            handleTakeMedClick={handleTakeMedClick}
+                                        />
+                                    ))}
+                                </Reorder.Group>
+
+                                {/* 轨道 B：常规执行重力场 */}
+                                <Reorder.Group axis="y" values={unpinnedMeds} onReorder={(newOrder) => handleReorder(newOrder, false)}>
+                                    {unpinnedMeds.map(med => (
+                                        <DraggableMedCard
+                                            key={med.id}
+                                            med={med}
+                                            stealth={stealth}
+                                            isSelected={selectedIds.includes(med.id)}
+                                            todayCount={getTodayProgress(med.id)}
+                                            isCompleted={getTodayProgress(med.id) >= med.times_per_day}
+                                            radar={getRadarInfo(med.last_taken_at, med.times_per_day)}
+                                            isLowAmmo={(med.times_per_day > 0) && (med.stock_amount / (med.times_per_day * med.dose_per_time) <= 3)}
+                                            toggleSelection={toggleSelection}
+                                            openRefillModal={openRefillModal}
+                                            handleDeleteClick={handleDeleteClick}
+                                            armedId={armedId}
+                                            handleTakeMedClick={handleTakeMedClick}
+                                        />
+                                    ))}
+                                </Reorder.Group>
                             </div>
                         );
-                    })}
+                    })()}
                 </div>
 
                 {/* 右侧记录 */}
