@@ -32,7 +32,7 @@ export const MEDICINE_DB = [
         ]
     },
     {
-        category: "💊 消炎抗感染",
+        category: "💊 消炎抗菌",
         items: [
             { name: "阿莫西林胶囊", unit: "粒", times: 3, dose: 2 },
             { name: "头孢克肟分散片", unit: "片", times: 2, dose: 1 },

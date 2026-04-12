@@ -64,12 +64,17 @@ const DraggableMedCard: React.FC<DraggableMedCardProps> = ({
                     <button
                         onClick={() => {
                             toggleSelection(med.id);
-                            setIsDrawerOpen(false); // 🚨 体验优化：点完锁定后，抽屉瞬间自动收回！
+                            // 🚀 核心修正：删掉自作聪明的 setIsDrawerOpen(false) 
+                            // 让抽屉保持敞开，方便随时反悔和反复开关！
                         }}
                         className="w-full h-full flex flex-col items-center justify-center text-white hover:bg-black/10 transition-all active:scale-95"
                     >
                         <CheckCircle2 size={32} className={isSelected ? 'text-white drop-shadow-md' : 'text-slate-400'} />
-                        <span className="text-[11px] font-black mt-2 tracking-widest">{isSelected ? '已取消' : '点击锁定'}</span>
+
+                        {/* 💡 顺手把文案改清晰：如果已经选中了，按钮就提示“取消锁定” */}
+                        <span className="text-[11px] font-black mt-2 tracking-widest">
+                            {isSelected ? '取消锁定' : '点击锁定'}
+                        </span>
                     </button>
                 </div>
 
@@ -284,8 +289,16 @@ export default function MedicineGuide() {
     const [globalMeds, setGlobalMeds] = useState<any[]>([]); // 存整个药典
     const [searchQuery, setSearchQuery] = useState('');      // 搜索框的字
     const [showDropdown, setShowDropdown] = useState(false); // 下拉菜单开关
-    const [activeCategory, setActiveCategory] = useState(MEDICINE_DB[0].category);
-    const [stockAmount, setStockAmount] = useState('20');
+    // 💡 核心修正：显式允许 string 或 null，并默认初始化为 null (即初始没选中任何标签)
+    const [activeCategory, setActiveCategory] = useState<string | null>(null); const [stockAmount, setStockAmount] = useState('20');
+    // 🚀 德江专属：根据单位智能预判合理库存量
+    const getRecommendStock = (u: string) => {
+        if (u === 'ml') return '100'; // 糖浆、口服液通常 100ml/瓶
+        if (u === '滴') return '150'; // 眼药水通常 150-200 滴
+        if (u === '喷') return '60';  // 鼻喷剂通常 60 喷/瓶
+        if (['支', '针', '贴'].includes(u)) return '5'; // 针剂/膏药通常数量少
+        return '20'; // 粒、片等常规药默认 20
+    };
     const [timesPerDay, setTimesPerDay] = useState('3');
     const [dosePerTime, setDosePerTime] = useState('1');
     const [unit, setUnit] = useState('粒');
@@ -301,6 +314,7 @@ export default function MedicineGuide() {
     const [retroMed, setRetroMed] = useState<any>(null);
     const [cooldownMed, setCooldownMed] = useState<any>(null);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
     const [toast, setToast] = useState<{ msg: string, show: boolean }>({ msg: '', show: false });
     const [nowTime, setNowTime] = useState(new Date());
     const [armedId, setArmedId] = useState<string | null>(null);
@@ -309,7 +323,7 @@ export default function MedicineGuide() {
     const [showPassword, setShowPassword] = useState(false);     // 密码显隐控制
     const [showConfirmPassword, setShowConfirmPassword] = useState(false); // 确认密码显隐控制
 
-    // 2. 📊 【战情分析】Memo 逻辑 (修复新兵空载漏洞版)
+    // 2. 📊 【战情分析】Memo 逻辑 (防溢出装甲版)
     const tacticalStats = useMemo(() => {
         let totalTargets = 0, destroyedTargets = 0, readyCount = 0;
         if (meds.length > 0) {
@@ -317,14 +331,16 @@ export default function MedicineGuide() {
                 if (med.times_per_day > 0) {
                     totalTargets += med.times_per_day;
                     const todayCount = logs.filter(l => l.medicine_id === med.id && new Date(l.taken_at).toDateString() === new Date().toDateString()).length;
-                    destroyedTargets += todayCount;
+
+                    // 🚀 核心优化：封顶！就算吃了 4 次，在统计上最多也只算满额 3 次
+                    destroyedTargets += Math.min(todayCount, med.times_per_day);
                     if (todayCount < med.times_per_day) readyCount++;
                 }
             });
         }
 
-        // 🚨 核心修复：如果是 0 任务，达成率就是 0
-        const hitRate = totalTargets > 0 ? Math.round((destroyedTargets / totalTargets) * 100) : 0;
+        // 🚀 核心优化：达成率死死锁在 100%
+        const hitRate = totalTargets > 0 ? Math.min(100, Math.round((destroyedTargets / totalTargets) * 100)) : 0;
 
         // 🚨 核心修复：空载时的默认静默状态 (灰色)
         let defcon = { level: 0, color: 'text-slate-400', bg: 'bg-slate-500', status: '暂无常规任务', glow: 'shadow-none' };
@@ -498,9 +514,10 @@ export default function MedicineGuide() {
     const handleTakeMedClick = (med: any) => {
 
         // 🚨 S.O.S 急救协议：无视一切冷却和冲突，立刻记录并弹窗！
+        // 🚨 S.O.S 急救协议：不立刻扣除，先召唤确认弹窗！
         if (med.times_per_day === 0) {
-            executeTakeMed(med, new Date()); // 瞬间扣除库存+写入日志
-            setSosAlertMed(med); // 召唤 120 弹窗
+            // executeTakeMed(med, new Date());  <--- 🚀 必须删掉这行危险代码！
+            setSosAlertMed(med);
             return;
         }
         // 1. 🛑 神盾拦截扫描：调出今天的作战日志
@@ -509,21 +526,37 @@ export default function MedicineGuide() {
         let triggerConflict = null;
 
         // 2. 匹配弹药类型：当前这颗药属于哪个高危组？
-        const currentGroup = CONFLICT_MATRIX.find(matrix => matrix.keywords.some(kw => med.name.includes(kw)));
+        // 🚀 第一道防线：同名重复扫描 (防御“阿莫西林撞阿莫西林”的乌龙)
+        const duplicateLog = todayLogs.find(log =>
+            log.medicine_id !== med.id && // ID不同 (说明是两个不同的记录条目)
+            log.medicine_name === med.name // 但名字一模一样
+        );
 
-        if (currentGroup) {
-            // 3. 雷达回波扫描：今天有没有吃过同组的、但名字不一样的药？
-            const conflictingLog = todayLogs.find(log =>
-                log.medicine_id !== med.id &&  // 不是这颗药本身
-                currentGroup.keywords.some(kw => log.medicine_name.includes(kw))
-            );
+        if (duplicateLog) {
+            triggerConflict = {
+                med: med,
+                msg: `⚠️ 重复记录提醒！\n\n您今天已经服用过【${med.name}】了。\n如果是同一个药，建议您直接使用原记录进行打卡。\n确认要强行增加一次叠加剂量吗？`
+            };
+        } else {
+            // 🛡️ 第二道防线：如果没有重复，再检查是不是危险的“交叉用药”
+            // 2. 匹配弹药类型：当前这颗药属于哪个高危组？
+            const currentGroup = CONFLICT_MATRIX.find(matrix => matrix.keywords.some(kw => med.name.includes(kw)));
 
-            if (conflictingLog) {
-                // 💥 触发死锁！
-                triggerConflict = {
-                    med: med,
-                    msg: `${currentGroup.alertMsg}\n\n今日已服用 "${conflictingLog.medicine_name}"`
-                };
+            if (currentGroup) {
+                // 3. 雷达回波扫描：今天有没有吃过同组的、但名字【不一样】的药？
+                const conflictingLog = todayLogs.find(log =>
+                    log.medicine_id !== med.id &&
+                    log.medicine_name !== med.name && // 🚀 核心：既然不是同名药，那就是真的交叉吃药了！
+                    currentGroup.keywords.some(kw => log.medicine_name.includes(kw))
+                );
+
+                if (conflictingLog) {
+                    // 💥 触发死锁！
+                    triggerConflict = {
+                        med: med,
+                        msg: `${currentGroup.alertMsg}\n\n今日已服用 "${conflictingLog.medicine_name}"`
+                    };
+                }
             }
         }
 
@@ -711,8 +744,13 @@ export default function MedicineGuide() {
 
     const openRefillModal = (med: any) => { setSelectedMed(med); setRefillValue('20'); setIsRefillOpen(true); playSciFiSound('success'); };
     const confirmRefill = async () => {
-        if (!selectedMed || isNaN(Number(refillValue))) return;
-        const newStock = selectedMed.stock_amount + Number(refillValue);
+        const amount = Number(refillValue);
+        // 🚀 核心优化：不仅防非数字，还要防 0 和 负数！
+        if (!selectedMed || isNaN(amount) || amount <= 0) {
+            alert('补药数量必须是大于 0 的数字！');
+            return;
+        }
+        const newStock = selectedMed.stock_amount + amount;
         await supabase.from('medicines').update({ stock_amount: newStock }).eq('id', selectedMed.id);
         fetchData(); setIsRefillOpen(false); playSciFiSound('login');
         showTacticalToast(`补给完毕：现存 ${newStock}`);
@@ -721,6 +759,29 @@ export default function MedicineGuide() {
     const handleDeleteClick = (id: string) => {
         if (armedId === id) { supabase.from('medicines').delete().eq('id', id).then(fetchData); setArmedId(null); playSciFiSound('warning'); }
         else { setArmedId(id); playSciFiSound('login'); setTimeout(() => setArmedId(curr => curr === id ? null : curr), 3000); }
+    };
+
+    // 🚀 新增：批量删除核心逻辑
+    const executeBulkDelete = async () => {
+        if (selectedIds.length === 0) return;
+
+        try {
+            // 🔪 遍历选中的 ID，发起多管齐下的删除请求
+            const promises = selectedIds.map(id =>
+                supabase.from('medicines').delete().eq('id', id)
+            );
+            await Promise.all(promises);
+
+            // 清扫战场：刷新数据、清空选中状态、关闭弹窗、播放音效
+            setSelectedIds([]);
+            setShowBulkDeleteModal(false);
+            fetchData();
+            playSciFiSound('warning'); // 用带警告感的音效
+            showTacticalToast(`清理完毕：已物理抹除 ${selectedIds.length} 个目标。`);
+        } catch (error) {
+            console.error("批量删除失败:", error);
+            alert('💥 核心数据库拦截了请求，批量清理失败！');
+        }
     };
 
     const handleExportData = () => {
@@ -836,7 +897,7 @@ export default function MedicineGuide() {
                             disabled={authLoading}
                             className="w-full bg-slate-900 hover:bg-teal-500 text-white font-black py-4 rounded-2xl transition-all shadow-lg mt-4 active:scale-95"
                         >
-                            {authLoading ? '正在核验身份...' : (isSignUp ? '立即登记健康档案 ➔' : '进入控制中心 ➔')}
+                            {authLoading ? '正在核验身份...' : (isSignUp ? '登记健康档案 ➔' : '进入控制中心 ➔')}
                         </motion.button>
                     </motion.form>
 
@@ -845,8 +906,24 @@ export default function MedicineGuide() {
                             setIsSignUp(!isSignUp);
                             setAuthError(null);
                         }} className="text-xs font-bold text-slate-400 hover:text-teal-500">
-                            {isSignUp ? '已有通行证？点此直接登录' : '没有账号？点此居民登记'}
+                            {isSignUp ? '已有账号？点此直接登录' : '没有账号？点此居民登记'}
                         </button>
+                        {/* 🚀 德江智慧服务：让登录页的报错“起死回生” */}
+                        {authError && (
+                            <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-all">
+                                <div className={`bg-white rounded-[2rem] p-8 w-full max-w-sm border-t-8 ${authError.type === 'success' ? 'border-teal-500 shadow-[0_0_50px_rgba(20,184,166,0.3)]' : 'border-orange-500 shadow-[0_0_50px_rgba(251,146,60,0.3)]'} text-center relative overflow-hidden`}>
+                                    <div className={`absolute top-0 left-0 w-full h-2 ${authError.type === 'success' ? 'bg-teal-500' : 'bg-orange-500'} animate-pulse`} />
+                                    <div className={`inline-block p-4 rounded-full mb-6 ${authError.type === 'success' ? 'bg-teal-50 text-teal-500' : 'bg-orange-50 text-orange-500'}`}>
+                                        {authError.type === 'success' ? <ShieldCheck size={40} /> : <Activity size={40} />}
+                                    </div>
+                                    <h3 className="text-xl font-black text-slate-800 tracking-tight mb-3">{authError.title}</h3>
+                                    <p className="text-sm font-bold text-slate-500 leading-relaxed mb-8 px-4">{authError.msg}</p>
+                                    <button onClick={() => setAuthError(null)} className={`w-full py-4 rounded-2xl font-black text-sm uppercase transition-all shadow-md active:scale-95 ${authError.type === 'success' ? 'bg-teal-500 text-white hover:bg-teal-400' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
+                                        我知道了 ➔
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -868,7 +945,7 @@ export default function MedicineGuide() {
             {/* 顶部 Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-4 pr-2">
                 <div>
-                    <h1 className="text-5xl font-black italic tracking-tighter text-slate-900">德江县居民智慧用药云站<span className="text-teal-500"> .</span></h1>
+                    <h1 className="text-5xl font-black italic tracking-tighter text-slate-900">德江智慧用药<span className="text-teal-500"> .</span></h1>
                     {/* 找到 Header 里的 email 展示位 */}
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.5em] mt-1">
                         登记居民: <span className={`text-teal-500 transition-all ${stealth ? 'blur-sm select-none' : ''}`}>
@@ -984,9 +1061,12 @@ export default function MedicineGuide() {
                         </div>
                     </TiltCard>
 
-                    {/* 月历矩阵 */}
+                    {/* 🚀 核心优化：新增标准的星期表头 */}
+                    <div className="grid grid-cols-7 gap-2 md:gap-3 w-full mb-3 text-center text-[10px] font-black text-slate-300 uppercase tracking-widest">
+                        <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+                    </div>
+
                     <div className="flex-1 flex items-center justify-center w-full relative z-10">
-                        {/* 间隔调大 (gap-2)，防止胖手指误触 */}
                         <div className="grid grid-cols-7 gap-2 md:gap-3 w-full">
                             {(() => {
                                 const bjNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Shanghai" }));
@@ -996,7 +1076,15 @@ export default function MedicineGuide() {
                                 const daysInMonth = new Date(year, month + 1, 0).getDate();
                                 const firstLogDate = logs.length > 0 ? logs[logs.length - 1].taken_at.split('T')[0] : todayStr;
 
-                                return Array.from({ length: daysInMonth }).map((_, i) => {
+                                // 🚀 获取本月 1 号是星期几 (0=周日, 6=周六)
+                                const firstDayOfWeek = new Date(year, month, 1).getDay();
+
+                                // 🚀 填充月初的空白占位符
+                                const blanks = Array.from({ length: firstDayOfWeek }).map((_, i) => (
+                                    <div key={`blank-${i}`} className="aspect-square pointer-events-none"></div>
+                                ));
+
+                                const days = Array.from({ length: daysInMonth }).map((_, i) => {
                                     const day = i + 1;
                                     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
@@ -1052,18 +1140,53 @@ export default function MedicineGuide() {
                                         </div>
                                     );
                                 });
+                                // 将空白和真实日期拼合在一起
+                                return [...blanks, ...days];
                             })()}
                         </div>
                     </div>
                 </div>
 
             </div>
-            {/* ==================== 🚀 智能补给部署舱 (直连 Supabase) ==================== */}
+{/* ==================== 🚀 智能补给部署舱 (直连 Supabase) ==================== */}
             <div className="bg-white p-6 rounded-[2rem] shadow-sm mb-10 border border-slate-100 flex flex-col gap-6 relative z-50">
-                <div className="flex items-center gap-2 mb-2">
-                    <PackagePlus size={16} className="text-teal-500" />
-                    <span className="text-xs font-black text-slate-400 uppercase tracking-widest">德江县标准常用药品目录查询</span>
+                
+                {/* 🚀 改造后：上下分层、文字居中呼吸感、标签自动排布 */}
+                <div className="flex flex-col items-center gap-4 mb-2">
+                    
+                    {/* 1. 独立居中的标题区 */}
+                    <div className="flex flex-col items-center gap-1 text-center">
+                        <div className="flex items-center gap-2">
+                            <PackagePlus size={20} className="text-teal-500" />
+                            <span className="text-sm font-black text-slate-700 uppercase tracking-widest">德江县标准常用药品目录查询</span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 font-bold">按疾病分类快速检索，点击下方标签直接过滤</span>
+                    </div>
+
+                    {/* 2. 独立的标签矩阵 (Flex Wrap 取代横向滑动，拒绝拥挤) */}
+                    <div className="flex flex-wrap justify-center gap-2 w-full">
+                        {MEDICINE_DB.map(cat => (
+                            <button
+                                key={cat.category}
+                                onClick={() => {
+                                    setActiveCategory(activeCategory === cat.category ? null : cat.category);
+                                    setSearchQuery('');
+                                    playSciFiSound('success');
+                                }}
+                                className={`shrink-0 px-4 py-2 rounded-2xl font-black text-[11px] uppercase transition-all border-2 ${
+                                    activeCategory === cat.category
+                                        ? 'bg-teal-500 border-teal-500 text-white shadow-lg shadow-teal-500/20'
+                                        : 'bg-slate-50 border-slate-100 text-slate-500 hover:border-teal-200 hover:bg-white'
+                                }`}
+                            >
+                                {cat.category}
+                            </button>
+                        ))}
+                    </div>
                 </div>
+
+                {/* 1. 🌐 智能检索火控雷达 (从这行 input 开始往下保持不变) */}
+                <div className="relative"></div>
 
                 {/* 1. 🌐 智能检索火控雷达 */}
                 <div className="relative">
@@ -1080,48 +1203,87 @@ export default function MedicineGuide() {
                         className="w-full p-4 rounded-xl bg-slate-50 border-2 border-transparent focus:border-teal-400 outline-none font-bold text-slate-800 shadow-inner transition-all"
                     />
 
-                    {/* ⚡ 全息下拉联想面板 */}
-                    {showDropdown && searchQuery.length > 0 && (
-                        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 max-h-64 overflow-y-auto custom-scrollbar overflow-hidden z-[100]">
+                    {/* ⚡ 德江药典：智能分类溢出引擎 (全功能版) */}
+                    {showDropdown && searchQuery.trim() !== '' && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.1)] border border-slate-100 max-h-80 overflow-y-auto custom-scrollbar z-[100] p-2">
                             {(() => {
-                                // 💡 提取过滤逻辑，避免重复计算
-                                const matchedMeds = globalMeds.filter(med => {
-                                    const query = searchQuery.toLowerCase();
-                                    // 1. 原生汉字或分类直接匹配
-                                    if (med.med_name.includes(query) || med.category_sub?.includes(query)) return true;
-                                    // 2. 🚀 拼音匹配引擎：支持 "blf" (首字母), "buluofen" (全拼), 甚至同音错别字
-                                    if (PinyinMatch.match(med.med_name, query)) return true;
-                                    return false;
+                                const query = searchQuery.toLowerCase().trim();
+
+                                // 🚀 脱水去噪引擎：扒掉所有 Emoji 和空格
+                                const clean = (str: string) => str ? str.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '') : '';
+
+                                // 1. 双通道精准拦截：同时核对 category 和 category_sub
+                                let matchedMeds = globalMeds.filter(med => {
+                                    const matchesCategory = activeCategory
+                                        ? (
+                                            // 💡 核心破局点：只要这两个字段里有一个对得上，就放行！
+                                            (med.category && clean(med.category).includes(clean(activeCategory))) ||
+                                            (med.category_sub && clean(med.category_sub).includes(clean(activeCategory)))
+                                        )
+                                        : true;
+
+                                    const matchesSearch = med.med_name.includes(query) || PinyinMatch.match(med.med_name, query);
+                                    return matchesCategory && matchesSearch;
                                 });
 
+                                // 2. 跨区搜救逻辑：如果当前分类真没有，再触发全库兜底
+                                const isFallback = activeCategory && matchedMeds.length === 0;
+                                if (isFallback) {
+                                    matchedMeds = globalMeds.filter(med =>
+                                        med.med_name.includes(query) || PinyinMatch.match(med.med_name, query)
+                                    );
+                                }
+
                                 return matchedMeds.length > 0 ? (
-                                    matchedMeds.slice(0, 10).map(med => (
-                                        <div
-                                            key={med.id}
-                                            onClick={() => {
-                                                // 🎯 一键锁定！参数自动填装！
-                                                setSearchQuery(med.med_name);
-                                                setMedName(med.med_name);
-                                                setUnit(med.default_unit);
-                                                setDosePerTime(med.default_dose?.toString() || '1');
-                                                setTimesPerDay(med.default_times?.toString() || '3');
-                                                setShowDropdown(false);
-                                                playSciFiSound('success');
-                                            }}
-                                            className="p-3 border-b border-slate-50 hover:bg-teal-50 cursor-pointer transition-all flex items-center justify-between group"
-                                        >
-                                            <div className="flex flex-col">
-                                                <span className="font-black text-slate-700 group-hover:text-teal-700">{med.med_name}</span>
-                                                <span className="text-[10px] text-slate-400 uppercase tracking-widest">{med.category_sub}</span>
+                                    <>
+                                        {/* 💡 橙色警报：仅在跨区搜救时显示 */}
+                                        {isFallback && (
+                                            <div className="px-4 py-3 mb-2 bg-orange-50 rounded-2xl border-orange-100 border flex items-center gap-2">
+                                                <span className="text-[10px] font-black text-orange-600 uppercase tracking-tight">
+                                                    ⚠️ 在“{activeCategory}”下未找到，已为您全库检索：
+                                                </span>
                                             </div>
-                                            <div className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md group-hover:bg-teal-100 group-hover:text-teal-600">
-                                                单次 {med.default_dose}{med.default_unit} x {med.default_times}次/日
+                                        )}
+
+                                        {matchedMeds.slice(0, 20).map(med => (
+                                            <div
+                                                key={med.id}
+                                                onClick={() => {
+                                                    setSearchQuery(med.med_name);
+                                                    setMedName(med.med_name);
+                                                    setUnit(med.default_unit);
+
+                                                    // 🚀 核心修复：在点选药品的瞬间，立刻根据该药的单位，强行重置库存量！
+                                                    setStockAmount(getRecommendStock(med.default_unit));
+
+                                                    setDosePerTime(med.default_dose?.toString() || '1');
+                                                    setTimesPerDay(med.default_times?.toString() || '3');
+                                                    setShowDropdown(false);
+                                                    playSciFiSound('success');
+                                                }}
+                                                className="p-4 rounded-2xl hover:bg-teal-50 cursor-pointer transition-all flex items-center justify-between group mb-1"
+                                            >
+                                                {/* ... 下面的 UI 渲染代码保持不变 ... */}
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-white group-hover:text-teal-500 transition-colors">
+                                                        <Activity size={18} />
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="font-black text-slate-700 group-hover:text-teal-700">{med.med_name}</span>
+                                                        {/* 💡 恢复你原本的渲染字段 */}
+                                                        <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{med.category_sub || med.category}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="text-[10px] font-black text-teal-600 bg-teal-50 px-3 py-1.5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    一键填装 ➔
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))
+                                        ))}
+                                    </>
                                 ) : (
-                                    <div className="p-4 text-center text-xs font-bold text-slate-400">
-                                        ⚠️ 未在药典找到匹配项，可直接点击“确认添加药品”手动入库。
+                                    <div className="p-8 text-center flex flex-col items-center gap-3">
+                                        <UserX className="text-slate-200" size={40} />
+                                        <span className="text-xs font-bold text-slate-400">德江药典中暂未收录该药，您可以手动录入</span>
                                     </div>
                                 );
                             })()}
@@ -1160,7 +1322,12 @@ export default function MedicineGuide() {
                                 {['粒', '片', '包', '支', 'ml', '滴', '贴', '喷', '针', '袋', '盒', '盖'].map(u => (
                                     <button
                                         key={u}
-                                        onClick={() => { setUnit(u); setShowUnitDrop(false); }}
+                                        onClick={() => {
+                                            setUnit(u);
+                                            setShowUnitDrop(false);
+                                            // 🚀 核心联动：切换单位时，瞬间拉高/调整默认库存！
+                                            setStockAmount(getRecommendStock(u));
+                                        }}
                                         className="text-[10px] font-black text-slate-500 bg-slate-50 hover:bg-teal-500 hover:text-white rounded-md py-2 transition-all shadow-sm active:scale-95"
                                     >
                                         {u}
@@ -1183,15 +1350,43 @@ export default function MedicineGuide() {
                     </div>
 
                     {/* ④ 入库总余量 (拦截负数与零) */}
-                    <div className="flex bg-slate-50 rounded-xl p-2 items-center focus-within:ring-2 focus-within:ring-teal-400 shadow-sm border-2 border-teal-100 transition-all">
-                        <span className="text-[9px] font-black px-2 text-teal-600 whitespace-nowrap">入库总余量</span>
-                        <input
-                            type="number" min="1"
-                            value={stockAmount}
-                            onChange={(e) => { if (Number(e.target.value) >= 0) setStockAmount(e.target.value); }}
-                            onBlur={() => { if (Number(stockAmount) <= 0) setStockAmount('20'); }}
-                            className="w-full bg-transparent border-none outline-none font-black text-teal-600 text-center text-lg"
-                        />
+                    {/* ④ 入库总余量 (动态引导版) */}
+                    <div className="flex flex-col relative z-20">
+                        <div className="flex bg-slate-50 rounded-xl p-2 items-center focus-within:ring-2 focus-within:ring-teal-400 shadow-sm border-2 border-teal-100 transition-all h-full">
+                            <span className="text-[9px] font-black px-2 text-teal-600 whitespace-nowrap">
+                                {/* 💡 核心变化：文案根据单位动态变脸 */}
+                                {['喷', '滴', '次'].includes(unit) ? '预估总可用' : '入库总余量'}
+                            </span>
+
+                            <input
+                                type="number" min="1" step="any"
+                                value={stockAmount}
+                                onChange={(e) => { if (Number(e.target.value) >= 0) setStockAmount(e.target.value); }}
+                                // {/* 🚀 核心防御：用户删空时，用智能推演值兜底，而不是死板的 20 */}
+                                onBlur={() => { if (Number(stockAmount) <= 0) setStockAmount(getRecommendStock(unit)); }}
+                                className="w-full bg-transparent border-none outline-none font-black text-teal-600 text-center text-lg"
+                            />
+
+                            {/* 强制在数字后面显示当前单位，加深认知 */}
+                            <span className="text-[10px] font-bold text-teal-400 pr-2">{unit}</span>
+                        </div>
+
+                        {/* 💡 德江专属换算小抄：只有选了特殊单位才会飘出来 */}
+                        {unit === '喷' && (
+                            <div className="absolute top-full left-0 mt-1 text-[9px] text-orange-600 font-bold bg-orange-50 px-2 py-1.5 rounded-lg border border-orange-100 w-full text-center shadow-sm">
+                                💡 参考：1 瓶鼻喷剂约含 <strong>60-80 喷</strong>
+                            </div>
+                        )}
+                        {unit === '滴' && (
+                            <div className="absolute top-full left-0 mt-1 text-[9px] text-orange-600 font-bold bg-orange-50 px-2 py-1.5 rounded-lg border border-orange-100 w-full text-center shadow-sm">
+                                💡 参考：1 瓶眼药水约含 <strong>150-200 滴</strong>
+                            </div>
+                        )}
+                        {['瓶', '支', '盒'].includes(unit) && (
+                            <div className="absolute top-full left-0 mt-1 text-[9px] text-red-500 font-bold bg-red-50 px-2 py-1.5 rounded-lg border border-red-100 w-full text-center shadow-sm animate-pulse">
+                                ⚠️ 警告：按包装录入可能导致余量计算不准
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -1255,18 +1450,25 @@ export default function MedicineGuide() {
                                         <div className={`w-2 h-2 rounded-full ${selectedIds.length > 0 ? 'bg-teal-500 animate-pulse' : 'bg-slate-300'}`} />
                                         Locked: {selectedIds.length}
                                     </div>
+
+                                    {/* ✅ 替换这里：将三个特种操作按钮统一收编到右侧 */}
                                     <div className="flex gap-2">
-                                        {/* 📌 新增：置顶/取消按钮 */}
+                                        {/* 🗑️ 新增：批量删除按钮 */}
+                                        <button onClick={() => setShowBulkDeleteModal(true)} disabled={selectedIds.length === 0} className={`text-[9px] font-black uppercase px-3 py-1 rounded-md border transition-all ${selectedIds.length > 0 ? 'border-red-400 text-red-600 hover:bg-red-50 shadow-sm' : 'border-slate-200 text-slate-300'}`}>
+                                            批量删除
+                                        </button>
+                                        {/* 📌 置顶/取消按钮 */}
                                         <button onClick={togglePinSelected} disabled={selectedIds.length === 0} className={`text-[9px] font-black uppercase px-3 py-1 rounded-md border transition-all ${selectedIds.length > 0 ? 'border-teal-400 text-teal-600 hover:bg-teal-50 shadow-sm' : 'border-slate-200 text-slate-300'}`}>
                                             置顶/取消
                                         </button>
+                                        {/* 📌 全选按钮 */}
                                         <button onClick={toggleSelectAll} className="text-[9px] font-black uppercase px-2 py-1 rounded-md border border-slate-200 text-slate-400 hover:text-teal-600 transition-all">
                                             {selectedIds.length > 0 ? '取消全选' : '全选待用'}
                                         </button>
                                     </div>
                                 </div>
                                 <button onClick={handleSalvoFire} disabled={selectedIds.length === 0} className={`w-full xl:w-auto px-8 py-4 rounded-2xl font-black text-sm uppercase transition-all flex items-center justify-center gap-2 ${selectedIds.length > 0 ? 'bg-teal-500 text-white shadow-lg hover:bg-teal-400 cursor-pointer' : 'bg-slate-100 text-slate-300 cursor-not-allowed'}`}>
-                                    <CheckCircle2 size={20} /> 一键全一键确认今日服药射
+                                    <CheckCircle2 size={20} /> 一键确认今日用药
                                 </button>
                             </div>
                         </div>
@@ -1297,8 +1499,15 @@ export default function MedicineGuide() {
                                             stealth={stealth}
                                             isSelected={selectedIds.includes(med.id)}
                                             todayCount={getTodayProgress(med.id)}
-                                            isCompleted={med.times_per_day > 0 && getTodayProgress(med.id) >= med.times_per_day} radar={getRadarInfo(med.last_taken_at, med.times_per_day)}
-                                            isLowAmmo={(med.times_per_day > 0) && (med.stock_amount / (med.times_per_day * med.dose_per_time) <= 3)} toggleSelection={toggleSelection}
+                                            isCompleted={med.times_per_day > 0 && getTodayProgress(med.id) >= med.times_per_day}
+                                            radar={getRadarInfo(med.last_taken_at, med.times_per_day)}
+
+                                            // {/* 🚀 修正 1：报警阈值压到 1 天，糖浆不乱叫 */}
+                                            isLowAmmo={(med.times_per_day > 0) && (med.stock_amount / (med.times_per_day * med.dose_per_time) <= 1)}
+
+                                            // {/* 🚀 修正 2：神经索独立成行，彻底消灭 TS 报错 */}
+                                            toggleSelection={toggleSelection}
+
                                             openRefillModal={openRefillModal}
                                             handleDeleteClick={handleDeleteClick}
                                             armedId={armedId}
@@ -1316,8 +1525,15 @@ export default function MedicineGuide() {
                                             stealth={stealth}
                                             isSelected={selectedIds.includes(med.id)}
                                             todayCount={getTodayProgress(med.id)}
-                                            isCompleted={med.times_per_day > 0 && getTodayProgress(med.id) >= med.times_per_day} radar={getRadarInfo(med.last_taken_at, med.times_per_day)}
-                                            isLowAmmo={med.times_per_day > 0 ? (med.stock_amount <= med.times_per_day * med.dose_per_time * 3) : (med.stock_amount <= med.dose_per_time * 2)} toggleSelection={toggleSelection}
+                                            isCompleted={med.times_per_day > 0 && getTodayProgress(med.id) >= med.times_per_day}
+                                            radar={getRadarInfo(med.last_taken_at, med.times_per_day)}
+
+                                            // {/* 🚀 修正 1：报警阈值压到 1 天 */}
+                                            isLowAmmo={med.times_per_day > 0 ? (med.stock_amount <= med.times_per_day * med.dose_per_time * 1) : (med.stock_amount <= med.dose_per_time * 2)}
+
+                                            // {/* 🚀 修正 2：神经索独立成行 */}
+                                            toggleSelection={toggleSelection}
+
                                             openRefillModal={openRefillModal}
                                             handleDeleteClick={handleDeleteClick}
                                             armedId={armedId}
@@ -1553,6 +1769,51 @@ export default function MedicineGuide() {
                 </div>
             )}
 
+            {/* ==================== 🚨 批量删除二次确认弹窗 ==================== */}
+            {showBulkDeleteModal && (
+                <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md transition-opacity">
+                    <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl border border-red-50 transform transition-all scale-100 text-center">
+
+                        {/* 顶部危险图标 */}
+                        <div className="inline-block p-4 rounded-full bg-red-50 text-red-500 mb-6">
+                            <Trash2 size={36} />
+                        </div>
+
+                        <h3 className="text-xl font-black text-slate-800 tracking-tight mb-3">确认批量删除？</h3>
+                        <p className="text-xs font-bold text-slate-500 leading-relaxed mb-4 px-2">
+                            即将永久删除以下 <span className="text-red-500 font-black text-lg">{selectedIds.length}</span> 项药品及其相关设置。
+                        </p>
+
+                        {/* 🔪 待删除目标预览清单 */}
+                        <div className="max-h-[15vh] overflow-y-auto space-y-2 mb-8 text-left bg-slate-50 p-3 rounded-xl border border-slate-100 custom-scrollbar">
+                            {meds.filter(m => selectedIds.includes(m.id)).map(med => (
+                                <div key={med.id} className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0"></div>
+                                    <span className="truncate">{stealth ? '【机密目标】' : med.name}</span>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* 柔性操作按钮 */}
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowBulkDeleteModal(false)}
+                                className="flex-1 py-4 rounded-2xl font-black text-xs text-slate-500 bg-slate-50 hover:bg-slate-100 transition-all"
+                            >
+                                取消
+                            </button>
+                            <button
+                                onClick={executeBulkDelete}
+                                className="flex-1 py-4 rounded-2xl font-black text-xs text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/30 transition-all flex items-center justify-center gap-2"
+                            >
+                                <Trash2 size={16} /> 确认抹除
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+
             {/* ==================== 🚨 S.O.S 生命通道弹窗 ==================== */}
             {sosAlertMed && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-red-950/90 backdrop-blur-xl transition-opacity">
@@ -1568,11 +1829,22 @@ export default function MedicineGuide() {
                             如果服用后症状未缓解，请务必立刻就医！
                         </p>
                         <div className="flex flex-col gap-4">
-                            <a href="tel:120" onClick={() => setSosAlertMed(null)} className="w-full py-5 rounded-2xl font-black text-lg text-white bg-red-600 hover:bg-red-500 shadow-lg flex items-center justify-center gap-2">
-                                📞 拨打 120 急救
-                            </a>
-                            <button onClick={() => setSosAlertMed(null)} className="w-full py-4 rounded-2xl font-black text-xs text-slate-400 border-2 border-slate-700">
-                                我已安全 / 仅记录数据
+                            {/* 🚀 真正的扣除库存和写日志，转移到这个确认按钮上 */}
+                            <button
+                                onClick={() => {
+                                    executeTakeMed(sosAlertMed, new Date());
+                                    setSosAlertMed(null);
+                                    window.location.href = "tel:120"; // 顺便帮他拨号
+                                }}
+                                className="w-full py-5 rounded-2xl font-black text-lg text-white bg-red-600 hover:bg-red-500 shadow-lg flex items-center justify-center gap-2"
+                            >
+                                🚨 确认已服药并拨打 120
+                            </button>
+                            <button
+                                onClick={() => setSosAlertMed(null)}
+                                className="w-full py-4 rounded-2xl font-black text-xs text-slate-400 border-2 border-slate-700 hover:bg-slate-800 transition-all"
+                            >
+                                误触 / 取消警报
                             </button>
                         </div>
                     </div>

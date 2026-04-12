@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">德江智慧用药</string>
+    <string name="title_activity_main">DejiangMed</string>
+    <string name="package_name">com.xiaoye.dejiangmed</string>
+    <string name="custom_url_scheme">com.xiaoye.dejiangmed</string>
+</resources>
